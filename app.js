@@ -591,5 +591,28 @@ $("azSave").addEventListener("click", async () => {
   }
 });
 
-render(); applyView(); loadVoices(); renderHist();
+/* ---------- daily materials (daily.json is updated every morning by a scheduled Claude task) ---------- */
+const todayJST = () => new Date().toLocaleDateString("sv-SE", {timeZone: "Asia/Tokyo"});
+async function loadDaily(){
+  let data;
+  try { const r = await fetch("daily.json?t=" + Date.now(), {cache: "no-store"}); if (!r.ok) return; data = await r.json(); } catch(e){ return; }
+  const list = (data && data.entries || []).filter(e => e && e.date && Array.isArray(e.sentences) && e.sentences.length).slice(0, 14);
+  if (!list.length) return;
+  const today = todayJST(), box = $("daily"); box.innerHTML = ""; $("dailyCard").hidden = false;
+  const asScript = e => ({title: `${e.date.slice(5).replace("-", "/")} ${e.title}`, level: "毎日", sentences: e.sentences.map(x => ({en: String(x.en), ja: String(x.ja || "")}))});
+  list.forEach(e => {
+    const b = document.createElement("button");
+    b.className = "ex" + (asScript(e).title === current.title ? " on" : "");
+    b.innerHTML = "<span><span class='t'></span><div class='sub'></div></span><span class='chip'></span>";
+    b.querySelector(".t").textContent = e.title;
+    b.querySelector(".sub").textContent = e.focus || "";
+    b.querySelector(".chip").textContent = e.date === today ? "本日" : e.date.slice(5).replace("-", "/");
+    b.addEventListener("click", () => { setScript(asScript(e)); showTab("practice"); });
+    box.appendChild(b);
+  });
+  const t = list.find(e => e.date === today);
+  if (t && store.get("dailySeen", "") !== today && !session){ store.set("dailySeen", today); setScript(asScript(t)); }
+}
+
+render(); applyView(); loadVoices(); renderHist(); loadDaily();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
