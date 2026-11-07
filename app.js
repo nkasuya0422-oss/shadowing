@@ -246,18 +246,30 @@ function speakDevice(text, onStart){
     synth.speak(u);
   });
 }
+/* iOS only lets audio start right after a tap. One shared player is "unlocked" synchronously
+   inside each tap handler, and every later clip reuses that same element. */
+const modelPlayer = new Audio();
+modelPlayer.setAttribute("playsinline", "");
+let SILENT = null;
+function unlockAudio(){
+  try {
+    if (!SILENT) SILENT = URL.createObjectURL(wav(new Float32Array(1600)));
+    modelPlayer.src = SILENT; modelPlayer.play().catch(() => {});
+  } catch(e){}
+}
 function playUrl(url, rate, onStart){
-  return new Promise(res => {
-    modelEl = new Audio(url);
-    if (rate) { modelEl.playbackRate = rate; modelEl.preservesPitch = true; }
-    modelEl.onplaying = () => { onStart && onStart(); onStart = null; };
-    modelEl.onended = res; modelEl.onerror = res;
-    modelEl.play().catch(res);
+  return new Promise((res, rej) => {
+    const p = modelPlayer;
+    p.onplaying = () => { onStart && onStart(); onStart = null; };
+    p.onended = () => res(); p.onerror = () => rej(new Error("play"));
+    p.src = url;
+    p.playbackRate = rate || 1; p.preservesPitch = true;
+    p.play().catch(() => rej(new Error("play")));
   });
 }
 
 /* plays the model; onSentence(i) fires as each sentence actually starts */
-let modelEl = null, playToken = 0;
+let playToken = 0;
 async function playModel(onSentence){
   const token = ++playToken;
   if (modelUrl){ await playUrl(modelUrl, Number($("rate").value), () => onSentence && onSentence(0)); return; }
@@ -275,12 +287,13 @@ async function playModel(onSentence){
 function stopModel(){
   playToken++;
   try { synth && synth.cancel(); } catch(e){}
-  if (modelEl){ try { modelEl.pause(); } catch(e){} modelEl = null; }
+  try { modelPlayer.pause(); } catch(e){}
 }
 
 let previewing = false;
 $("previewBtn").addEventListener("click", async () => {
   if (session) return;
+  if (!previewing) unlockAudio();
   if (previewing){ stopModel(); return; }
   previewing = true; $("previewBtn").textContent = "■ 止める";
   try { await prepareModel(); await playModel(mark); }
@@ -325,7 +338,10 @@ async function startSession(){
   await wait(600);
   try {
     await playModel(i => { s.starts[i] = (performance.now() - s.t0) / 1000; mark(i); $("status").textContent = `${i+1}/${current.sentences.length}文`; });
-  } catch(e){ $("status").textContent = "再生できません"; }
+  } catch(e){
+    if (session === s){ await finishSession(); alertInline("お手本を再生できませんでした。イヤホンの接続と音量を確認して、もう一度赤いボタンを押してください。"); }
+    return;
+  }
   if (session !== s) return;
   $("status").textContent = "まとめ中";
   await wait(1500);
@@ -352,7 +368,7 @@ function setRecUI(on){
   if (!on) $("status").textContent = "待機中";
   ["previewBtn","ownBtn"].forEach(id => $(id).disabled = on);
 }
-$("recBtn").addEventListener("click", () => session ? finishSession() : startSession());
+$("recBtn").addEventListener("click", () => { if (session) finishSession(); else { unlockAudio(); startSession(); } });
 function toast(msg){ $("status").textContent = "エラー"; alertInline(msg); }
 function alertInline(msg){
   let n = $("inlineMsg");
@@ -380,8 +396,9 @@ function renderTakes(){
     d.querySelector('[data-a="submit"]').addEventListener("click", () => submit(t));
     d.querySelector('[data-a="overlay"]').addEventListener("click", async () => {
       if (session) return;
-      const a = d.querySelector("audio"); stopModel(); a.currentTime = 0;
-      const p = playModel(mark).catch(() => {}); await wait(600); a.play().catch(() => {}); await p; mark(-1);
+      const a = d.querySelector("audio"); stopModel(); unlockAudio();
+      a.currentTime = 0; a.play().catch(() => {});          // own voice starts now (the take began 0.6 s before the model)
+      await wait(600); await playModel(mark).catch(() => {}); mark(-1);
     });
     box.appendChild(d);
   });
@@ -512,7 +529,7 @@ function renderReport(r){
     }
     const sb = document.createElement("button"); sb.className = "btn ghost small"; sb.textContent = "▶ お手本";
     sb.addEventListener("click", async () => {
-      stopModel();
+      stopModel(); unlockAudio();
       try {
         const v = $("voice").value;
         if (v.startsWith("az:")) await playUrl(await azClip(s.en, v.slice(3), r.rate), 0);
@@ -579,12 +596,13 @@ $("azSave").addEventListener("click", async () => {
   const key = $("azKey").value.trim(), region = $("azRegion").value;
   const msg = $("azMsg");
   if (!key){ store.set("azure", null); msg.className = "sub"; msg.textContent = "キーを削除しました。"; loadVoices(); return; }
+  unlockAudio();
   store.set("azure", {key, region}); clipCache.clear();
   msg.className = "sub"; msg.textContent = "接続テスト中…";
   try {
     const url = await azClip("Hello! Let's practice shadowing.", AZ_VOICES[0][0], 1);
     msg.className = "okmsg"; msg.textContent = "接続できました。お手本の声がAzureの声になり、添削が使えます。";
-    loadVoices(); new Audio(url).play().catch(() => {});
+    loadVoices(); playUrl(url, 1).catch(() => {});
   } catch(e){
     msg.className = "err";
     msg.textContent = /401|403/.test(String(e.message)) ? "キーかリージョンが違います。Azureの「キーとエンドポイント」画面の KEY 1 と「場所/リージョン」を確認してください。" : "接続できませんでした（" + e.message + "）。";
