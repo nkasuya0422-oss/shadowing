@@ -329,6 +329,12 @@ function pickMime(){
     if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t;
   return "";
 }
+/* turn the mic fully off after each take so iOS's orange recording indicator goes away */
+function releaseMic(){
+  if (micStream){ micStream.getTracks().forEach(t => { try { t.stop(); } catch(e){} }); micStream = null; }
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden && !session) releaseMic(); });
+window.addEventListener("pagehide", () => releaseMic());
 async function getMic(){
   if (micStream && micStream.getAudioTracks().some(t => t.readyState === "live")) return micStream;
   micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
@@ -375,6 +381,7 @@ async function finishSession(){
   s.end = (performance.now() - s.t0) / 1000;
   if (s.rec && s.rec.state !== "inactive") await new Promise(res => { s.rec.onstop = res; try { s.rec.stop(); } catch(e){ res(); } });
   try { wakeLock && wakeLock.release(); } catch(e){} wakeLock = null;
+  releaseMic();
   session = null; setRecUI(false);
   if (!s.chunks.length){ toast("録音できませんでした。マイクの許可を確認してください。"); return; }
   const blob = new Blob(s.chunks, {type: s.chunks[0].type || "audio/mp4"});
