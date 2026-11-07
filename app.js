@@ -1,6 +1,8 @@
 "use strict";
-/* Shadowing PWA — plays a model (TTS or audio file) into earphones while recording
-   the mic and, optionally, running speech recognition; then scores word coverage. */
+/* Shadowing PWA
+   練習: model audio in earphones + mic recording (own voice only, no scoring)
+   提出: the chosen take is cut per sentence, sent to Azure pronunciation assessment,
+         and turned into Japanese feedback on linking, weak forms, reductions and sounds (coach.js). */
 
 const EXAMPLES = [
   {title:"Weekend plans", level:"中級", sentences:[
@@ -30,28 +32,84 @@ const CLAUDE_PROMPT = `シャドーイング用の英語教材を作ってくだ
 - 6文、自然な話し言葉のアメリカ英語（短縮形やよく使う句動詞を含める）
 - 1行に1文、「英文 | 和訳」の形式で、それ以外は何も書かないでください。`;
 
+const AZ_VOICES = [
+  ["en-US-AvaMultilingualNeural","Ava（アメリカ・女性）"], ["en-US-AndrewMultilingualNeural","Andrew（アメリカ・男性）"],
+  ["en-US-EmmaMultilingualNeural","Emma（アメリカ・女性）"], ["en-US-BrianMultilingualNeural","Brian（アメリカ・男性）"],
+  ["en-US-JennyNeural","Jenny（アメリカ・女性）"], ["en-US-GuyNeural","Guy（アメリカ・男性）"],
+  ["en-GB-SoniaNeural","Sonia（イギリス・女性）"], ["en-GB-RyanNeural","Ryan（イギリス・男性）"],
+  ["en-AU-NatashaNeural","Natasha（オーストラリア・女性）"]
+];
+
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
-  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }
 };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const wait = ms => new Promise(r => setTimeout(r, ms));
 
 let current = store.get("script", null) || EXAMPLES[0];
 let modelFile = null, modelUrl = null;
+const az = () => { const c = store.get("azure", null); return c && c.key && c.region ? c : null; };
 
 /* ---------- tabs ---------- */
 document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.p)));
 function showTab(p){
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.p === p)));
-  ["src","practice","log"].forEach(k => $("p-"+k).hidden = k !== p);
-  window.scrollTo(0,0);
+  ["src","practice","report","settings"].forEach(k => $("p-"+k).hidden = k !== p);
+  window.scrollTo(0, 0);
+}
+
+/* ---------- annotated sentence rendering ---------- */
+const LINKS = new Set(["link","flap","hdrop","double"]);
+const GROUPS = new Set(["reduce","tyou","dyou"]);
+/* judge: optional {tok:[{acc,err}], marks:{"i-j":status}} */
+function sentenceEl(text, judge){
+  const toks = Coach.tokenize(text), marks = Coach.annotate(toks);
+  const el = document.createElement("div"); el.className = "en";
+  const byStart = {}, linkAfter = {}, goneAt = {}, weakAt = {};
+  marks.forEach(m => {
+    if (GROUPS.has(m.type)) byStart[m.i] = m;
+    else if (LINKS.has(m.type)) linkAfter[m.i] = m;
+    else if (m.type === "elide" || m.type === "stopt") goneAt[m.i] = true;
+    else if (m.type === "weak") weakAt[m.i] = m;
+  });
+  const tokHTML = i => {
+    const t = toks[i]; let raw = esc(t.raw);
+    if (goneAt[i]) raw = raw.replace(/([td])([^a-zA-Z]*)$/, '<span class="gone">$1</span>$2');
+    let cls = "tk";
+    if (weakAt[i]) cls += " weak";
+    const j = judge && judge.tok[i];
+    if (j) { if (!j.acc && j.acc !== 0 || j.err === "Omission") cls += " s-ng"; else if (j.acc < 50) cls += " s-ng"; else if (j.acc < 75) cls += " s-warn"; }
+    return `<span class="${cls}">${raw}</span>`;
+  };
+  const sep = i => {
+    const m = linkAfter[i];
+    if (m) { const st = judge && judge.marks[`${m.i}-${m.j}`]; return `<span class="lk"${st === "ng" ? ' style="color:var(--miss)"' : ""}>‿</span>`; }
+    return " ";
+  };
+  let html = "";
+  for (let i = 0; i < toks.length; i++){
+    const g = byStart[i];
+    if (g){
+      let inner = "";
+      for (let k = g.i; k <= g.j; k++) inner += tokHTML(k) + (k < g.j ? '<span class="lk">‿</span>' : "");
+      const st = judge && judge.marks[`${g.i}-${g.j}`];
+      html += `<ruby class="tk red"${st === "ng" ? ' style="text-decoration-color:var(--miss)"' : ""}>${inner}<rt>${esc(g.reading)}</rt></ruby>`;
+      i = g.j;
+    } else if (weakAt[i]) {
+      html += `<ruby>${tokHTML(i)}<rt>${esc(weakAt[i].reading)}</rt></ruby>`;
+    } else html += tokHTML(i);
+    if (i < toks.length - 1) html += sep(i);
+  }
+  el.innerHTML = html;
+  return el;
 }
 
 /* ---------- script ---------- */
 function setScript(s){
   if (session) return;
   current = s; store.set("script", s);
-  $("resultCard").hidden = true;
   render();
 }
 function render(){
@@ -60,9 +118,9 @@ function render(){
   current.sentences.forEach((s, i) => {
     const d = document.createElement("div");
     d.className = "sent"; d.id = "sent-" + i;
-    d.innerHTML = `<span class="no">${String(i+1).padStart(2,"0")}</span><span><div class="en"></div><div class="ja"></div></span>`;
-    d.querySelector(".en").textContent = s.en;
-    d.querySelector(".ja").textContent = s.ja || "";
+    d.innerHTML = `<span class="no">${String(i+1).padStart(2,"0")}</span><span></span>`;
+    d.children[1].appendChild(sentenceEl(s.en));
+    if (s.ja){ const j = document.createElement("div"); j.className = "ja"; j.textContent = s.ja; d.children[1].appendChild(j); }
     box.appendChild(d);
   });
   const ex = $("examples"); ex.innerHTML = "";
@@ -78,8 +136,15 @@ function render(){
 }
 function mark(i){ document.querySelectorAll(".sent").forEach((el,k) => el.classList.toggle("now", k === i)); }
 
-$("blind").addEventListener("change", e => $("script").classList.toggle("blind", e.target.checked));
-$("hideJa").addEventListener("change", e => $("script").classList.toggle("hideja", e.target.checked));
+const applyView = () => {
+  $("script").classList.toggle("blind", $("blind").checked);
+  $("script").classList.toggle("hideja", $("hideJa").checked);
+  $("script").classList.toggle("plain", !$("marksOn").checked);
+  $("legend").hidden = !$("marksOn").checked;
+  store.set("view", {marks: $("marksOn").checked, blind: $("blind").checked, hideJa: $("hideJa").checked});
+};
+(() => { const v = store.get("view", null); if (v){ $("marksOn").checked = v.marks; $("blind").checked = v.blind; $("hideJa").checked = v.hideJa; } })();
+["marksOn","blind","hideJa"].forEach(id => $(id).addEventListener("change", applyView));
 
 $("ownBtn").addEventListener("click", () => {
   const raw = $("own").value.trim(); if (!raw) return;
@@ -94,12 +159,11 @@ $("ownBtn").addEventListener("click", () => {
     sentences = parts.map(p => ({en: p.trim(), ja: ""})).filter(p => p.en);
   }
   if (!sentences.length) return;
-  const title = sentences[0].en.split(/\s+/).slice(0,4).join(" ") + "…";
-  setScript({title, level:"", sentences});
+  setScript({title: sentences[0].en.split(/\s+/).slice(0,4).join(" ") + "…", level:"", sentences});
   showTab("practice");
 });
 $("promptBtn").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText(CLAUDE_PROMPT); $("promptMsg").textContent = "コピーしました。Claudeのチャットに貼って、結果をここに貼り付けてください。"; }
+  try { await navigator.clipboard.writeText(CLAUDE_PROMPT); $("promptMsg").textContent = "コピーしました。Claudeのチャットに貼って、返ってきた文をここに貼り付けてください。"; }
   catch(e){ $("own").value = CLAUDE_PROMPT; $("promptMsg").textContent = "コピーできなかったので上の欄に入れました。選択してコピーしてください。"; }
 });
 
@@ -114,74 +178,98 @@ $("audioFile").addEventListener("change", e => {
 $("audioClear").addEventListener("click", () => {
   if (modelUrl) URL.revokeObjectURL(modelUrl);
   modelFile = null; modelUrl = null; $("audioFile").value = "";
-  $("audioName").textContent = "未選択（読み上げ音声を使用）";
+  $("audioName").textContent = "未選択（合成音声を使用）";
   $("audioClear").hidden = true; $("voiceField").hidden = false;
 });
 
-/* ---------- TTS ---------- */
+/* ---------- voices: Azure neural if configured, otherwise the device's natural voices ---------- */
 const synth = window.speechSynthesis;
-let voices = [];
-/* Only natural-sounding voices: Apple's human voices, Google and Microsoft neural voices.
-   Novelty voices (Bells, Zarvox…) and the robotic Eloquence set (Eddy, Flo, Grandma…) are dropped. */
-const NATURAL = /\b(Samantha|Ava|Allison|Susan|Zoe|Nicky|Joelle|Noelle|Evan|Nathan|Tom|Aaron|Alex|Daniel|Kate|Serena|Arthur|Martha|Oliver|Stephanie|Jamie|Karen|Lee|Catherine|Gordon|Matilda|Moira|Tessa|Rishi|Veena|Fiona|Google|Aria|Jenny|Guy|Michelle|Ana|Christopher|Eric|Roger|Steffan|Sonia|Ryan|Libby|Natasha|William)\b/i;
-const ROBOTIC = /\b(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Deranged|Good News|Hysterical|Jester|Junior|Kathy|Organ|Pipe Organ|Princess|Ralph|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley|Victoria)\b/i;
-const REGION = {US:"アメリカ", GB:"イギリス", AU:"オーストラリア", IE:"アイルランド", IN:"インド", ZA:"南アフリカ", CA:"カナダ", NZ:"ニュージーランド", SC:"スコットランド"};
-const quality = v => /premium/i.test(v.name) ? 2 : /enhanced|neural|natural|online/i.test(v.name) ? 1 : 0;
+let deviceVoices = [];
+const NATURAL = /\b(Samantha|Ava|Allison|Susan|Zoe|Nicky|Joelle|Noelle|Evan|Nathan|Tom|Aaron|Alex|Daniel|Kate|Serena|Arthur|Martha|Oliver|Karen|Lee|Catherine|Gordon|Moira|Tessa|Rishi|Fiona|Google|Aria|Jenny|Guy)\b/i;
+const ROBOTIC = /\b(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Junior|Kathy|Organ|Ralph|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley|Victoria)\b/i;
 function loadVoices(){
-  if (!synth) return;
-  const en = synth.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang) && !ROBOTIC.test(v.name));
-  voices = en.filter(v => NATURAL.test(v.name));
-  if (!voices.length) voices = en;          // unknown platform: keep everything except the robotic ones
-  const rank = v => -quality(v) * 10 + (/en[-_]US/i.test(v.lang) ? 0 : 1);
-  voices.sort((a,b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   const sel = $("voice"), keep = store.get("voice", "");
-  sel.innerHTML = voices.length ? "" : "<option value=''>標準の英語音声</option>";
-  voices.forEach(v => {
-    const o = document.createElement("option"); o.value = v.name;
-    const region = REGION[(v.lang.split(/[-_]/)[1] || "").toUpperCase()] || v.lang;
-    const name = v.name.replace(/\s*\((Premium|Enhanced|English.*?)\)/gi, "").replace(/^(Microsoft|Google)\s+/,"$1 ");
-    o.textContent = `${name}（${region}${quality(v) === 2 ? "・最高音質" : quality(v) === 1 ? "・高音質" : ""}）`;
-    sel.appendChild(o);
-  });
-  if (keep && voices.some(v => v.name === keep)) sel.value = keep;
-  $("voiceHint").hidden = voices.some(v => quality(v) > 0);
+  sel.innerHTML = "";
+  if (az()){
+    AZ_VOICES.forEach(([id, name]) => { const o = document.createElement("option"); o.value = "az:" + id; o.textContent = name; sel.appendChild(o); });
+    $("voiceHint").hidden = true;
+  } else if (synth){
+    const en = synth.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang) && !ROBOTIC.test(v.name));
+    deviceVoices = en.filter(v => NATURAL.test(v.name)); if (!deviceVoices.length) deviceVoices = en;
+    deviceVoices.sort((a,b) => (/en[-_]US/i.test(a.lang)?0:1) - (/en[-_]US/i.test(b.lang)?0:1));
+    deviceVoices.forEach(v => { const o = document.createElement("option"); o.value = "dev:" + v.name; o.textContent = `${v.name}（${v.lang}）`; sel.appendChild(o); });
+    if (!deviceVoices.length) sel.innerHTML = "<option value=''>標準の英語音声</option>";
+    $("voiceHint").hidden = false;
+  }
+  if (keep && sel.querySelector(`option[value="${CSS.escape(keep)}"]`)) sel.value = keep;
 }
-if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
+if (synth) synth.onvoiceschanged = loadVoices;
 $("voice").addEventListener("change", e => store.set("voice", e.target.value));
 $("rate").value = store.get("rate", 0.9);
 const showRate = () => $("rateOut").textContent = Number($("rate").value).toFixed(2) + "×";
 showRate();
 $("rate").addEventListener("input", () => { showRate(); store.set("rate", Number($("rate").value)); });
 
-function speak(text){
+/* Azure TTS clips, cached per voice/rate/text */
+const clipCache = new Map();
+const xml = s => String(s).replace(/[<>&'"]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]));
+async function azClip(text, voice, rate){
+  const k = `${voice}|${rate}|${text}`;
+  if (clipCache.has(k)) return clipCache.get(k);
+  const c = az(); if (!c) throw new Error("nokey");
+  const pct = Math.round((rate - 1) * 100);
+  const ssml = `<speak version="1.0" xml:lang="en-US"><voice name="${voice}"><prosody rate="${pct >= 0 ? "+" : ""}${pct}%">${xml(text)}</prosody></voice></speak>`;
+  const res = await fetch(`https://${c.region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+    method: "POST",
+    headers: {"Ocp-Apim-Subscription-Key": c.key, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3"},
+    body: ssml
+  });
+  if (!res.ok) throw new Error("tts " + res.status);
+  const url = URL.createObjectURL(await res.blob());
+  clipCache.set(k, url);
+  return url;
+}
+const usingAzureVoice = () => !modelUrl && $("voice").value.startsWith("az:");
+async function prepareModel(){
+  if (!usingAzureVoice()) return;
+  const v = $("voice").value.slice(3), r = Number($("rate").value);
+  let done = 0;
+  await Promise.all(current.sentences.map(async s => { await azClip(s.en, v, r); $("status").textContent = `準備 ${++done}/${current.sentences.length}`; }));
+}
+
+function speakDevice(text, onStart){
   return new Promise(res => {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-US"; u.rate = Number($("rate").value);
-    const v = voices.find(x => x.name === $("voice").value); if (v){ u.voice = v; u.lang = v.lang; }
-    u.onend = res; u.onerror = res;
+    const v = deviceVoices.find(x => "dev:" + x.name === $("voice").value); if (v){ u.voice = v; u.lang = v.lang; }
+    u.onstart = () => onStart && onStart(); u.onend = res; u.onerror = res;
     synth.speak(u);
   });
 }
-const wait = ms => new Promise(r => setTimeout(r, ms));
+function playUrl(url, rate, onStart){
+  return new Promise(res => {
+    modelEl = new Audio(url);
+    if (rate) { modelEl.playbackRate = rate; modelEl.preservesPitch = true; }
+    modelEl.onplaying = () => { onStart && onStart(); onStart = null; };
+    modelEl.onended = res; modelEl.onerror = res;
+    modelEl.play().catch(res);
+  });
+}
 
-/* plays the model; resolves when finished or cancelled */
+/* plays the model; onSentence(i) fires as each sentence actually starts */
 let modelEl = null, playToken = 0;
 async function playModel(onSentence){
   const token = ++playToken;
-  if (modelUrl){
-    modelEl = new Audio(modelUrl);
-    modelEl.playbackRate = Number($("rate").value);
-    modelEl.preservesPitch = true;
-    await new Promise(res => { modelEl.onended = res; modelEl.onerror = res; modelEl.play().catch(res); });
-    return;
-  }
-  if (!synth) throw new Error("tts");
+  if (modelUrl){ await playUrl(modelUrl, Number($("rate").value), () => onSentence && onSentence(0)); return; }
+  const v = $("voice").value, r = Number($("rate").value);
   for (let i = 0; i < current.sentences.length; i++){
     if (token !== playToken) return;
-    onSentence && onSentence(i);
-    await speak(current.sentences[i].en);
+    const text = current.sentences[i].en, start = () => onSentence && onSentence(i);
+    if (v.startsWith("az:")) await playUrl(await azClip(text, v.slice(3), r), 0, start);
+    else if (synth) await speakDevice(text, start);
+    else throw new Error("tts");
     if (token !== playToken) return;
-    await wait(250);
+    await wait(300);
   }
 }
 function stopModel(){
@@ -190,99 +278,74 @@ function stopModel(){
   if (modelEl){ try { modelEl.pause(); } catch(e){} modelEl = null; }
 }
 
-/* preview without recording */
 let previewing = false;
 $("previewBtn").addEventListener("click", async () => {
   if (session) return;
   if (previewing){ stopModel(); return; }
   previewing = true; $("previewBtn").textContent = "■ 止める";
-  try { await playModel(mark); } catch(e){ $("status").textContent = "再生できません"; }
-  previewing = false; mark(-1); $("previewBtn").textContent = "お手本だけ聞く";
+  try { await prepareModel(); await playModel(mark); }
+  catch(e){ $("status").textContent = "再生できません"; azError(e); }
+  previewing = false; mark(-1); $("previewBtn").textContent = "お手本だけ聞く"; $("status").textContent = "待機中";
 });
 
-/* ---------- recording + recognition ---------- */
-let session = null, micStream = null, lastRecUrl = null, wakeLock = null;
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR){ $("useAsr").checked = false; $("useAsr").disabled = true; $("useAsr").parentElement.title = "このブラウザは音声認識に対応していません"; }
-
+/* ---------- recording (own voice only) ---------- */
+let session = null, micStream = null, wakeLock = null;
+const takes = [];
 function pickMime(){
   if (!window.MediaRecorder) return null;
   for (const t of ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/aac"])
     if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t;
   return "";
 }
-
 async function getMic(){
   if (micStream && micStream.getAudioTracks().some(t => t.readyState === "live")) return micStream;
   micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
   return micStream;
 }
 
-function startAsr(s){
-  if (!SR || !$("useAsr").checked) return;
-  const r = new SR();
-  r.lang = "en-US"; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
-  s.finals = []; s.interim = "";
-  r.onresult = ev => {
-    let interim = "";
-    for (let i = ev.resultIndex; i < ev.results.length; i++){
-      const res = ev.results[i];
-      if (res.isFinal) s.finals.push(res[0].transcript); else interim += res[0].transcript;
-    }
-    s.interim = interim;
-  };
-  r.onerror = ev => { if (ev.error !== "no-speech" && ev.error !== "aborted") s.asrError = ev.error; };
-  r.onend = () => {                       // iOS/Chrome end recognition on pauses: restart while recording
-    if (s.interim){ s.finals.push(s.interim); s.interim = ""; }
-    if (session === s && !s.stopping && !s.asrError){ try { r.start(); } catch(e){} }
-  };
-  try { r.start(); s.asr = r; } catch(e){ s.asrError = "start"; }
-}
-
 async function startSession(){
   if (session) return;
   stopModel(); previewing = false;
+  $("recBtn").disabled = true;
+  try { $("status").textContent = "準備中"; await prepareModel(); }
+  catch(e){ $("recBtn").disabled = false; $("status").textContent = "待機中"; azError(e); return; }
   let stream;
   try { stream = await getMic(); }
-  catch(e){ $("status").textContent = "マイク不可"; alertBox("マイクを使えませんでした。設定 → Safari → マイク を「許可」にして、もう一度試してください。"); return; }
-
-  const s = {chunks: [], start: Date.now(), stopping: false};
-  session = s; setRecUI(true);
-  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch(e){}
-
+  catch(e){ $("recBtn").disabled = false; $("status").textContent = "マイク不可"; toast("マイクを使えませんでした。iPhoneの 設定 → Safari → マイク を「許可」にして、もう一度試してください。"); return; }
   const mime = pickMime();
-  if (mime !== null){
-    try {
-      s.rec = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream);
-      s.rec.ondataavailable = e => { if (e.data && e.data.size) s.chunks.push(e.data); };
-      s.rec.start(250);
-    } catch(e){ s.rec = null; }
-  }
-  startAsr(s);
-  $("status").textContent = "録音中";
-  await wait(500);                         // let the mic and recognizer warm up
+  if (mime === null){ $("recBtn").disabled = false; toast("このブラウザは録音に対応していません。"); return; }
 
-  try { await playModel(i => { mark(i); $("status").textContent = `${i+1}/${current.sentences.length}文`; }); }
-  catch(e){ $("status").textContent = "再生できません"; }
-  if (session !== s) return;               // stopped manually
+  const s = {chunks: [], starts: [], stopping: false, script: JSON.parse(JSON.stringify(current)), rate: Number($("rate").value), file: !!modelUrl, voice: $("voice").value};
+  session = s; $("recBtn").disabled = false; setRecUI(true);
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch(e){}
+  s.rec = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream);
+  s.rec.ondataavailable = e => { if (e.data && e.data.size) s.chunks.push(e.data); };
+  s.rec.start(250); s.t0 = performance.now();
+  $("status").textContent = "録音中";
+  await wait(600);
+  try {
+    await playModel(i => { s.starts[i] = (performance.now() - s.t0) / 1000; mark(i); $("status").textContent = `${i+1}/${current.sentences.length}文`; });
+  } catch(e){ $("status").textContent = "再生できません"; }
+  if (session !== s) return;
   $("status").textContent = "まとめ中";
-  await wait(1500);                        // catch the tail of the user's last words
+  await wait(1500);
   if (session === s) finishSession();
 }
-
 async function finishSession(){
   const s = session; if (!s || s.stopping) return;
-  s.stopping = true;
-  stopModel(); mark(-1);
-  if (s.asr){ try { s.asr.stop(); } catch(e){} await wait(700); }
-  if (s.rec && s.rec.state !== "inactive"){
-    await new Promise(res => { s.rec.onstop = res; try { s.rec.stop(); } catch(e){ res(); } });
-  }
+  s.stopping = true; stopModel(); mark(-1);
+  s.end = (performance.now() - s.t0) / 1000;
+  if (s.rec && s.rec.state !== "inactive") await new Promise(res => { s.rec.onstop = res; try { s.rec.stop(); } catch(e){ res(); } });
   try { wakeLock && wakeLock.release(); } catch(e){} wakeLock = null;
   session = null; setRecUI(false);
-  showResult(s);
+  if (!s.chunks.length){ toast("録音できませんでした。マイクの許可を確認してください。"); return; }
+  const blob = new Blob(s.chunks, {type: s.chunks[0].type || "audio/mp4"});
+  takes.unshift({id: Date.now(), blob, url: URL.createObjectURL(blob), starts: s.starts, end: s.end, script: s.script, rate: s.rate, file: s.file,
+    when: new Date().toLocaleTimeString("ja-JP", {hour:"2-digit", minute:"2-digit"})});
+  while (takes.length > 5){ const t = takes.pop(); URL.revokeObjectURL(t.url); }
+  renderTakes();
+  setTimeout(() => $("takesCard").scrollIntoView({behavior:"smooth", block:"start"}), 50);
 }
-
 function setRecUI(on){
   $("recBtn").classList.toggle("on", on);
   $("recLabel").textContent = on ? "停止" : "シャドーイング開始";
@@ -290,90 +353,243 @@ function setRecUI(on){
   ["previewBtn","ownBtn"].forEach(id => $(id).disabled = on);
 }
 $("recBtn").addEventListener("click", () => session ? finishSession() : startSession());
-
-function alertBox(msg){ $("resultCard").hidden = false; $("scoreBox").hidden = true; $("legend").hidden = true; $("diff").innerHTML = ""; $("asrErr").textContent = msg; }
-
-/* ---------- scoring ---------- */
-const NUM = {"0":"zero","1":"one","2":"two","3":"three","4":"four","5":"five","6":"six","7":"seven","8":"eight","9":"nine","10":"ten","11":"eleven","12":"twelve","20":"twenty"};
-const norm = w => { const x = w.toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']/g,""); return NUM[x] || x; };
-function scoreIt(script, said){
-  const sw = [];
-  script.forEach((s,si) => s.en.split(/\s+/).filter(Boolean).forEach(w => { const n = norm(w); if (n) sw.push({w, n, si}); }));
-  const tw = said.split(/[\s-]+/).map(norm).filter(Boolean);
-  const A = sw.length, B = tw.length;
-  const dp = Array.from({length:A+1}, () => new Uint16Array(B+1));
-  for (let i=A-1;i>=0;i--) for (let j=B-1;j>=0;j--)
-    dp[i][j] = sw[i].n === tw[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
-  let i=0, j=0;
-  while (i<A && j<B){ if (sw[i].n === tw[j]){ sw[i].ok = true; i++; j++; } else if (dp[i+1][j] >= dp[i][j+1]) i++; else j++; }
-  const hit = sw.filter(x => x.ok).length;
-  return {words: sw, hit, total: A, extra: Math.max(0, B - hit)};
+function toast(msg){ $("status").textContent = "エラー"; alertInline(msg); }
+function alertInline(msg){
+  let n = $("inlineMsg");
+  if (!n){ n = document.createElement("div"); n.id = "inlineMsg"; n.className = "card err"; $("p-practice").prepend(n); }
+  n.textContent = msg; n.hidden = false; showTab("practice");
+  setTimeout(() => { n.hidden = true; }, 8000);
+}
+function azError(e){
+  const m = String(e && e.message || e);
+  if (m === "nokey") return;
+  if (/401|403/.test(m)) alertInline("Azureのキーかリージョンが違うようです。設定タブで確認してください。");
+  else if (/tts|Failed to fetch|Load failed|NetworkError/.test(m)) alertInline("Azureに接続できませんでした。通信状況と、設定タブのキー・リージョンを確認してください。");
 }
 
-function showResult(s){
-  $("resultCard").hidden = false; $("asrErr").textContent = "";
-  if (lastRecUrl) URL.revokeObjectURL(lastRecUrl);
-  if (s.chunks.length){
-    const blob = new Blob(s.chunks, {type: s.chunks[0].type || "audio/mp4"});
-    lastRecUrl = URL.createObjectURL(blob);
-    $("myAudio").src = lastRecUrl; $("overlayBtn").hidden = false;
-  } else {
-    $("myAudio").removeAttribute("src"); $("overlayBtn").hidden = true;
-  }
-
-  const said = (s.finals || []).join(" ").trim();
-  $("heard").textContent = said || "（なし）";
-  const usedAsr = !!s.asr || !!s.asrError;
-  let pct = null;
-  if (usedAsr && said){
-    const r = scoreIt(current.sentences, said);
-    pct = r.total ? Math.round(r.hit / r.total * 100) : 0;
-    $("pct").textContent = pct + "%";
-    $("pctNote").textContent = `${r.total}語中 ${r.hit}語 言えた`;
-    $("barFill").style.width = pct + "%";
-    const d = $("diff"); d.innerHTML = "";
-    current.sentences.forEach((_, si) => {
-      const p = document.createElement("p");
-      r.words.filter(x => x.si === si).forEach(x => { const sp = document.createElement("span"); sp.className = "w " + (x.ok ? "ok" : "ng"); sp.textContent = x.w; p.append(sp, " "); });
-      d.appendChild(p);
+function renderTakes(){
+  $("takesCard").hidden = !takes.length;
+  const box = $("takes"); box.innerHTML = "";
+  takes.forEach((t, k) => {
+    const d = document.createElement("div"); d.className = "take";
+    d.innerHTML = `<div class="hd"><b></b><span class="sub"></span></div><audio controls playsinline preload="metadata"></audio>
+      <div class="row"><button class="btn small" data-a="submit">提出して添削</button><button class="btn ghost small" data-a="overlay">お手本と重ねて聞く</button></div>`;
+    d.querySelector("b").textContent = `録音 ${takes.length - k}`;
+    d.querySelector(".sub").textContent = `${t.when}・${t.script.title}・${t.rate.toFixed(2)}×`;
+    d.querySelector("audio").src = t.url;
+    d.querySelector('[data-a="submit"]').addEventListener("click", () => submit(t));
+    d.querySelector('[data-a="overlay"]').addEventListener("click", async () => {
+      if (session) return;
+      const a = d.querySelector("audio"); stopModel(); a.currentTime = 0;
+      const p = playModel(mark).catch(() => {}); await wait(600); a.play().catch(() => {}); await p; mark(-1);
     });
-    $("scoreBox").hidden = false; $("legend").hidden = false;
-  } else {
-    $("scoreBox").hidden = true; $("legend").hidden = true; $("diff").innerHTML = "";
-    if (usedAsr){
-      $("asrErr").textContent = s.asrError
-        ? `録音中に音声認識が使えませんでした（${s.asrError}）。録音の聞き返しはできます。`
-        : "音声認識が何も聞き取れませんでした。マイクに向かって少し大きめの声で話してみてください。";
-    }
-  }
-  if (!s.chunks.length && !said) $("asrErr").textContent = "録音できませんでした。マイクの許可を確認してください。";
-
-  const h = store.get("hist", []);
-  h.unshift({d: new Date().toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}), t: current.title, s: pct});
-  store.set("hist", h.slice(0, 100)); renderHist();
-  setTimeout(() => $("resultCard").scrollIntoView({behavior:"smooth", block:"start"}), 50);
+    box.appendChild(d);
+  });
 }
 
-/* listen to model and own recording together, to compare timing */
-$("overlayBtn").addEventListener("click", async () => {
-  if (session) return;
-  const me = $("myAudio"); me.currentTime = 0;
-  stopModel();
-  const p = playModel(mark);
-  await wait(500);                         // same lead-in as recording
-  me.play().catch(() => {});
-  await p; mark(-1);
-});
+/* ---------- submission: audio → 16 kHz WAV per sentence → Azure pronunciation assessment ---------- */
+async function decode16k(blob){
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC();
+  const buf = await new Promise((res, rej) => { blob.arrayBuffer().then(ab => ctx.decodeAudioData(ab, res, rej)).catch(rej); });
+  try { ctx.close(); } catch(e){}
+  const len = Math.ceil(buf.duration * 16000);
+  const off = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, len, 16000);
+  const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
+  const out = await off.startRendering();
+  return out.getChannelData(0);
+}
+function wav(samples){
+  const b = new ArrayBuffer(44 + samples.length * 2), v = new DataView(b);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0,"RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8,"WAVE"); w(12,"fmt ");
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,16000,true);
+  v.setUint32(28,32000,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++){ const x = Math.max(-1, Math.min(1, samples[i])); v.setInt16(44 + i*2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
+  return new Blob([b], {type: "audio/wav"});
+}
+const b64 = s => btoa(unescape(encodeURIComponent(s)));
+async function assess(wavBlob, refText){
+  const c = az();
+  const call = async params => fetch(`https://${c.region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=detailed`, {
+    method: "POST",
+    headers: {"Ocp-Apim-Subscription-Key": c.key, "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000", "Accept": "application/json",
+      "Pronunciation-Assessment": b64(JSON.stringify(params))},
+    body: wavBlob
+  });
+  const base = {ReferenceText: refText, GradingSystem: "HundredMark", Granularity: "Phoneme", Dimension: "Comprehensive", EnableMiscue: "True"};
+  let res = await call(Object.assign({EnableProsodyAssessment: "True", PhonemeAlphabet: "IPA"}, base));
+  if (res.status === 400) res = await call(base);                 // older regions/params: fall back to the basics
+  if (!res.ok) throw new Error("stt " + res.status);
+  return Coach.parseAzure(await res.json());
+}
+
+async function submit(take){
+  if (!az()){ showTab("settings"); $("azMsg").textContent = "添削にはAzureのキーが必要です。先に設定してください。"; $("azMsg").className = "err"; return; }
+  if (busy) return; busy = true;
+  showTab("report"); $("reportCard").hidden = true; $("progressCard").hidden = false;
+  const prog = (p, t) => { $("progFill").style.width = Math.round(p * 100) + "%"; $("progText").textContent = t; };
+  try {
+    prog(0.05, "録音を読み込み中…");
+    const pcm = await decode16k(take.blob);
+    const dur = pcm.length / 16000, sents = take.script.sentences;
+    let segs;
+    if (!take.file && take.starts.length === sents.length && take.starts.every(x => typeof x === "number")){
+      segs = sents.map((s, i) => {
+        const a = Math.max(0, take.starts[i] - 0.15);
+        const b = Math.min(dur, i < sents.length - 1 ? take.starts[i+1] + 0.7 : dur, a + 29.5);
+        return {text: s.en, ja: s.ja, a, b};
+      });
+    } else {
+      if (dur > 30) throw new Error("long");
+      segs = [{text: sents.map(s => s.en).join(" "), ja: "", a: 0, b: dur}];
+    }
+    const out = [];
+    for (let i = 0; i < segs.length; i++){
+      const g = segs[i];
+      prog(0.1 + 0.85 * i / segs.length, `${i+1}/${segs.length}文目を評価中…`);
+      const clip = pcm.subarray(Math.floor(g.a * 16000), Math.floor(g.b * 16000));
+      const res = await assess(wav(clip), g.text);
+      const j = Coach.judgeSentence(g.text, res, take.rate);
+      out.push({en: g.text, ja: g.ja, a: g.a, b: g.b, scores: res.scores, heard: res.display,
+        tok: j.map.map(w => w ? {acc: w.acc, err: w.err} : {acc: null, err: "Omission"}),
+        findings: j.findings.map(f => ({type: f.type, i: f.i, j: f.j, status: f.status, label: f.label, msg: f.msg, tip: f.tip}))});
+    }
+    prog(1, "まとめ中…");
+    const report = {id: take.id + "-" + Date.now(), date: new Date().toLocaleString("ja-JP", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"}),
+      title: take.script.title, rate: take.rate, sentences: out, total: totalScores(out)};
+    takeAudio.set(report.id, take.url);
+    const hist = store.get("reports", []); hist.unshift(report);
+    while (hist.length && !store.set("reports", hist.slice(0, 30))) hist.pop();
+    renderReport(report); renderHist();
+  } catch(e){
+    const m = String(e && e.message || e);
+    $("reportCard").hidden = false;
+    $("reportCard").innerHTML = `<h2>添削できませんでした</h2><div class="err">${esc(
+      m === "long" ? "音声ファイル教材は30秒以内のものだけ添削できます。短く切った音声で試してください。" :
+      /401|403/.test(m) ? "Azureのキーかリージョンが違うようです。設定タブで確認してください。" :
+      /429/.test(m) ? "Azureの利用制限に達しました。少し待ってからもう一度提出してください。" :
+      /decode|EncodingError/i.test(m) ? "録音を読み込めませんでした。もう一度録音して提出してください。" :
+      "Azureに接続できませんでした（" + m + "）。通信状況と設定を確認してください。")}</div>`;
+  }
+  $("progressCard").hidden = true; busy = false;
+}
+let busy = false;
+const takeAudio = new Map();
+
+function totalScores(sents){
+  const keys = ["pron","acc","flu","comp","pros"], t = {};
+  keys.forEach(k => {
+    let sum = 0, w = 0;
+    sents.forEach(s => { const v = s.scores && s.scores[k]; if (typeof v === "number"){ const n = s.tok.length || 1; sum += v * n; w += n; } });
+    t[k] = w ? Math.round(sum / w) : null;
+  });
+  return t;
+}
+
+/* ---------- report ---------- */
+const ICON = {ng:"✗", warn:"△", ok:"✓", info:"i"};
+function renderReport(r){
+  const card = $("reportCard"); card.hidden = false; card.innerHTML = "";
+  const t = r.total, tile = (v, l, main) => `<div class="tile${main ? " main" : ""}"><b>${v == null ? "–" : v}</b><span>${l}</span></div>`;
+  const ng = r.sentences.reduce((n, s) => n + s.findings.filter(f => f.status === "ng").length, 0);
+  card.insertAdjacentHTML("beforeend", `<div class="hd row" style="justify-content:space-between"><h2>${esc(r.title)}</h2><span class="sub">${esc(r.date)}・${r.rate.toFixed(2)}×</span></div>
+    <div class="tiles">${tile(t.pron,"総合",true)}${tile(t.acc,"正確さ")}${tile(t.flu,"流暢さ")}${tile(t.pros,"抑揚")}${tile(t.comp,"完全さ")}</div>
+    <div class="sub">直したいところ ${ng}か所。赤い ‿ はつながっていない所、色の付いた語は発音が崩れた語です。</div>
+    <label class="toggle"><input type="checkbox" id="showAll"> できている所も表示</label>`);
+  const audioUrl = takeAudio.get(r.id);
+  let player = null;
+  if (audioUrl){ player = new Audio(audioUrl); }
+  r.sentences.forEach((s, k) => {
+    const sec = document.createElement("div"); sec.className = "rsent";
+    const markStatus = {}; s.findings.forEach(f => { if (f.i >= 0) markStatus[`${f.i}-${f.j}`] = f.status; });
+    const sc = s.scores ? Math.round(s.scores.pron) : "–";
+    sec.innerHTML = `<div class="hd"><span class="no">${String(k+1).padStart(2,"0")}・${sc}点</span><span class="row"></span></div>`;
+    if (player){
+      const b = document.createElement("button"); b.className = "btn ghost small"; b.textContent = "▶ 自分の声";
+      b.addEventListener("click", () => { player.pause(); player.currentTime = s.a; player.play().catch(() => {}); const stopAt = s.b; player.ontimeupdate = () => { if (player.currentTime >= stopAt) player.pause(); }; });
+      sec.querySelector(".hd .row").appendChild(b);
+    }
+    const sb = document.createElement("button"); sb.className = "btn ghost small"; sb.textContent = "▶ お手本";
+    sb.addEventListener("click", async () => {
+      stopModel();
+      try {
+        const v = $("voice").value;
+        if (v.startsWith("az:")) await playUrl(await azClip(s.en, v.slice(3), r.rate), 0);
+        else if (synth) await speakDevice(s.en);
+      } catch(e){ azError(e); }
+    });
+    sec.querySelector(".hd .row").appendChild(sb);
+    sec.appendChild(sentenceEl(s.en, {tok: s.tok, marks: markStatus}));
+    if (s.ja){ const j = document.createElement("div"); j.className = "ja"; j.textContent = s.ja; sec.appendChild(j); }
+    const ul = document.createElement("ul"); ul.className = "finds";
+    s.findings.forEach(f => {
+      const li = document.createElement("li"); li.className = f.status;
+      li.innerHTML = `<span class="ic">${ICON[f.status]}</span><span><span class="lb"></span> <span class="ms"></span><div class="tp"></div></span>`;
+      li.querySelector(".lb").textContent = f.label; li.querySelector(".ms").textContent = f.msg;
+      li.querySelector(".tp").textContent = f.status === "ok" ? "" : f.tip || "";
+      ul.appendChild(li);
+    });
+    if (!s.findings.some(f => f.status === "ng" || f.status === "warn")){
+      const li = document.createElement("li"); li.className = "ok"; li.style.display = "grid";
+      li.innerHTML = `<span class="ic">✓</span><span>この文はよく言えています</span>`; ul.appendChild(li);
+    }
+    sec.appendChild(ul);
+    if (s.heard){ const h = document.createElement("div"); h.className = "sub"; h.textContent = "聞き取り: " + s.heard; sec.appendChild(h); }
+    card.appendChild(sec);
+  });
+  const cb = document.createElement("button"); cb.className = "btn ghost"; cb.textContent = "Claudeにもっと詳しく聞く（コピー）";
+  const cm = document.createElement("div"); cm.className = "sub";
+  cb.addEventListener("click", async () => {
+    const text = claudePrompt(r);
+    try { await navigator.clipboard.writeText(text); cm.textContent = "コピーしました。Claudeのチャットに貼ってください。"; }
+    catch(e){ cm.textContent = "コピーできませんでした。"; }
+  });
+  card.append(cb, cm);
+  $("showAll").addEventListener("change", e => card.classList.toggle("showall", e.target.checked));
+  card.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function claudePrompt(r){
+  const lines = r.sentences.map((s, k) => {
+    const f = s.findings.filter(x => x.status !== "ok").map(x => `  - [${x.status}] ${x.label}: ${x.msg}`).join("\n");
+    return `${k+1}. ${s.en}\n  スコア: ${s.scores ? Math.round(s.scores.pron) : "–"} / 聞き取り: ${s.heard || "-"}\n${f || "  - 問題なし"}`;
+  }).join("\n");
+  return `英語のシャドーイングの発音評価結果です（Azureの発音評価による実測）。日本人学習者向けに、カタカナや口の動きなど感覚的にわかる言葉で、優先度の高い順に3〜5つ、具体的な直し方と練習法を教えてください。リンキング・弱形・脱落など音の変化に特に注目してください。
+
+総合 ${r.total.pron} / 正確さ ${r.total.acc} / 流暢さ ${r.total.flu} / 抑揚 ${r.total.pros} / 完全さ ${r.total.comp}（スピード ${r.rate}×）
+
+${lines}`;
+}
 
 function renderHist(){
-  const h = store.get("hist", []), ul = $("hist"); ul.innerHTML = "";
-  if (!h.length){ ul.innerHTML = "<li><span class='sub'>まだ記録がありません。</span></li>"; return; }
-  h.slice(0, 30).forEach(r => {
-    const li = document.createElement("li"); li.innerHTML = "<span></span><span class='s'></span>";
-    li.children[0].textContent = `${r.d}　${r.t}`; li.children[1].textContent = r.s == null ? "録音のみ" : r.s + "%";
+  const h = store.get("reports", []), ul = $("hist"); ul.innerHTML = "";
+  if (!h.length){ ul.innerHTML = "<li><span class='sub'>まだ添削がありません。練習タブで録音して「提出して添削」を押してください。</span></li>"; return; }
+  h.forEach(r => {
+    const li = document.createElement("li"); li.innerHTML = "<button></button><span class='s'></span>";
+    li.children[0].textContent = `${r.date}　${r.title}`; li.children[1].textContent = r.total.pron == null ? "–" : r.total.pron + "点";
+    li.children[0].addEventListener("click", () => renderReport(r));
     ul.appendChild(li);
   });
 }
 
-render(); renderHist();
+/* ---------- settings ---------- */
+(() => { const c = store.get("azure", null); if (c){ $("azKey").value = c.key || ""; $("azRegion").value = c.region || "eastus"; } })();
+$("azSave").addEventListener("click", async () => {
+  const key = $("azKey").value.trim(), region = $("azRegion").value;
+  const msg = $("azMsg");
+  if (!key){ store.set("azure", null); msg.className = "sub"; msg.textContent = "キーを削除しました。"; loadVoices(); return; }
+  store.set("azure", {key, region}); clipCache.clear();
+  msg.className = "sub"; msg.textContent = "接続テスト中…";
+  try {
+    const url = await azClip("Hello! Let's practice shadowing.", AZ_VOICES[0][0], 1);
+    msg.className = "okmsg"; msg.textContent = "接続できました。お手本の声がAzureの声になり、添削が使えます。";
+    loadVoices(); new Audio(url).play().catch(() => {});
+  } catch(e){
+    msg.className = "err";
+    msg.textContent = /401|403/.test(String(e.message)) ? "キーかリージョンが違います。Azureの「キーとエンドポイント」画面の KEY 1 と「場所/リージョン」を確認してください。" : "接続できませんでした（" + e.message + "）。";
+  }
+});
+
+render(); applyView(); loadVoices(); renderHist();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

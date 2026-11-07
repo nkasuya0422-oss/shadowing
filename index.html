@@ -8,16 +8,15 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Shadowing">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
 <style>
 :root{
-  /* one narrow column; three tabs (教材 / 練習 / 記録); big record button fixed at bottom */
+  /* one narrow column; four tabs (教材 / 練習 / 添削 / 設定); record button docked at the bottom */
   --bg:#eef2f5; --surface:#ffffff; --ink:#13202c; --muted:#5b6b7a; --line:#d5dde5;
   --accent:#2a55c4; --accent-ink:#ffffff; --accent-soft:#e3eafb;
-  --hit:#1d7f55; --hit-soft:#ddf2e8; --miss:#bf3d29; --miss-soft:#fbe4df; --rec:#d23c3c;
+  --hit:#1d7f55; --hit-soft:#ddf2e8; --miss:#bf3d29; --miss-soft:#fbe4df; --warn:#a86a00; --warn-soft:#fdf0d5; --rec:#d23c3c;
   --body:-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
   color-scheme: light;
 }
@@ -25,7 +24,7 @@
   :root{
     --bg:#0f161d; --surface:#17212b; --ink:#e6edf3; --muted:#93a3b2; --line:#2a3846;
     --accent:#7c9cf0; --accent-ink:#0d1520; --accent-soft:#1f2c47;
-    --hit:#5cc994; --hit-soft:#16352a; --miss:#f08a76; --miss-soft:#40211b; --rec:#ff6b6b;
+    --hit:#5cc994; --hit-soft:#16352a; --miss:#f08a76; --miss-soft:#40211b; --warn:#e6b450; --warn-soft:#3a2e12; --rec:#ff6b6b;
     color-scheme: dark;
   }
 }
@@ -37,66 +36,101 @@ header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 h1{font-weight:800;font-size:1.5rem;margin:0;letter-spacing:-.01em}
 h2{font-weight:700;font-size:1.05rem;margin:0}
 .sub{color:var(--muted);font-size:.85rem}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
-.tabs button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:600;padding:9px 4px;border-radius:9px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tabs button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:600;padding:9px 2px;border-radius:9px;font-size:.95rem}
 .tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
 .panel{display:flex;flex-direction:column;gap:14px}
-.panel[hidden],[hidden]{display:none!important}
+[hidden]{display:none!important}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
 label{font-size:.85rem;color:var(--muted);font-weight:600}
 .field{display:flex;flex-direction:column;gap:4px}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-select,input[type=text],textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+select,input[type=text],input[type=password],textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
 textarea{min-height:130px;resize:vertical}
 input[type=file]{font-size:.85rem;color:var(--muted)}
-.btn{font:inherit;font-weight:700;border-radius:10px;padding:11px 16px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
+.btn{font:inherit;font-weight:700;border-radius:10px;padding:10px 14px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
 .btn.ghost{background:transparent;color:var(--accent)}
+.btn.small{padding:7px 10px;font-size:.85rem}
 .btn:disabled{opacity:.45}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .ex{display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
 .ex.on{border-color:var(--accent);background:var(--accent-soft)}
 .chip{font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
-.script{display:flex;flex-direction:column;gap:4px}
-.sent{display:grid;grid-template-columns:26px 1fr;gap:8px;padding:9px;border-radius:10px;border:1px solid transparent}
-.sent.now{border-color:var(--accent);background:var(--accent-soft)}
-.sent .no{font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
-.sent .en{font-size:1.05rem;font-weight:500}
-.sent .ja{font-size:.85rem;color:var(--muted)}
-.blind .sent .en{color:transparent;text-shadow:0 0 10px var(--muted);user-select:none}
-.hideja .sent .ja{display:none}
+.note{font-size:.85rem;color:var(--muted);background:var(--bg);border-radius:10px;padding:10px 12px}
+.note ol{margin:4px 0 0;padding-left:1.3em}
 .toggle{display:flex;align-items:center;gap:6px;font-size:.9rem;color:var(--ink);font-weight:500}
 .speed{display:flex;align-items:center;gap:8px}
 .speed input{flex:1}
 .speed output{font-variant-numeric:tabular-nums;font-weight:700;min-width:44px;text-align:right}
-.note{font-size:.85rem;color:var(--muted);background:var(--bg);border-radius:10px;padding:10px 12px}
+
+/* script with sound-change notation */
+.script{display:flex;flex-direction:column;gap:4px}
+.sent{display:grid;grid-template-columns:26px 1fr;gap:8px;padding:9px;border-radius:10px;border:1px solid transparent}
+.sent.now{border-color:var(--accent);background:var(--accent-soft)}
+.no{font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+.en{font-size:1.08rem;font-weight:500;line-height:2.3}
+.ja{font-size:.85rem;color:var(--muted)}
+.blind .en{color:transparent;text-shadow:0 0 10px var(--muted);user-select:none}
+.blind .en rt{visibility:hidden}
+.hideja .ja{display:none}
+.plain .en rt,.plain .lk{display:none}
+.plain .tk.weak{font-size:inherit;color:inherit}
+.plain .gone{opacity:1}
+.tk{border-radius:4px;padding:0 1px}
+.tk.weak{color:var(--muted);font-size:.9em}
+.tk.red{text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:4px;text-decoration-thickness:2px}
+.gone{opacity:.35}
+.lk{color:var(--accent);font-weight:800;margin:0 -1px}
+rt{font-size:.6em;color:var(--accent);font-weight:700;letter-spacing:.02em}
+.tk.s-ok{background:var(--hit-soft)}
+.tk.s-warn{background:var(--warn-soft)}
+.tk.s-ng{background:var(--miss-soft);color:var(--miss)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted)}
+
 .dock{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
 .dock .in{max-width:640px;margin:0 auto;display:flex;gap:10px;align-items:center}
 .recbtn{flex:1;font:inherit;font-weight:800;font-size:1.05rem;border:0;border-radius:14px;padding:15px;background:var(--rec);color:#fff;display:flex;align-items:center;justify-content:center;gap:10px}
 .recbtn .dot{width:12px;height:12px;border-radius:50%;background:#fff}
 .recbtn.on .dot{border-radius:2px}
 .recbtn.on{animation:pulse 1.4s ease-in-out infinite}
+.recbtn:disabled{opacity:.5;animation:none}
 @keyframes pulse{50%{opacity:.75}}
-.dock .status{font-size:.8rem;color:var(--muted);min-width:72px;text-align:right;font-variant-numeric:tabular-nums}
-.score{display:flex;align-items:baseline;gap:10px}
-.score .big{font-weight:800;font-size:2.6rem;line-height:1;font-variant-numeric:tabular-nums}
-.bar{height:8px;border-radius:999px;background:var(--bg);overflow:hidden}
-.bar i{display:block;height:100%;background:var(--hit)}
-#diff p{margin:0 0 6px;font-size:1.05rem;line-height:1.9}
-.w{padding:1px 3px;border-radius:4px}
-.w.ok{background:var(--hit-soft);color:var(--hit)}
-.w.ng{background:var(--miss-soft);color:var(--miss);text-decoration:underline wavy}
-.legend{display:flex;gap:12px;font-size:.8rem;color:var(--muted)}
-audio{width:100%}
-.heard{font-size:.9rem;color:var(--muted);white-space:pre-wrap}
+.dock .status{font-size:.8rem;color:var(--muted);min-width:76px;text-align:right;font-variant-numeric:tabular-nums}
+
+.take{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.take .hd{display:flex;justify-content:space-between;align-items:center;gap:8px}
+audio{width:100%;height:40px}
+
+/* report */
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tile{background:var(--bg);border-radius:10px;padding:8px 4px;text-align:center}
+.tile b{display:block;font-size:1.4rem;font-variant-numeric:tabular-nums;line-height:1.2}
+.tile span{font-size:.7rem;color:var(--muted)}
+.tile.main{background:var(--accent);color:var(--accent-ink)}
+.tile.main span{color:inherit;opacity:.8}
+.rsent{display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+.rsent:first-of-type{border-top:0;padding-top:0}
+.rsent .hd{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.finds{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.finds li{display:grid;grid-template-columns:22px 1fr;gap:8px;font-size:.9rem;padding:8px;border-radius:10px;background:var(--bg)}
+.finds .ic{font-weight:800;text-align:center}
+.finds .ng .ic{color:var(--miss)} .finds .warn .ic{color:var(--warn)} .finds .ok .ic{color:var(--hit)} .finds .info .ic{color:var(--accent)}
+.finds .lb{font-weight:700}
+.finds .tp{color:var(--muted);font-size:.82rem}
+.finds li.ok,.finds li.info{display:none}
+.showall .finds li.ok,.showall .finds li.info{display:grid}
+.progress{height:6px;border-radius:999px;background:var(--bg);overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
 .hist{list-style:none;margin:0;padding:0}
-.hist li{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.hist li{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);font-size:.9rem}
 .hist li:last-child{border-bottom:0}
+.hist button{font:inherit;color:var(--accent);background:none;border:0;padding:0;text-align:left}
 .hist .s{font-weight:700;font-variant-numeric:tabular-nums}
 .err{color:var(--miss);font-size:.85rem}
-.ok-msg{color:var(--hit);font-size:.85rem}
-@media (max-width:400px){.grid2{grid-template-columns:1fr}}
-@media (prefers-reduced-motion:reduce){.recbtn.on{animation:none}}
+.okmsg{color:var(--hit);font-size:.85rem}
+@media (max-width:400px){.grid2{grid-template-columns:1fr}.tile b{font-size:1.15rem}}
+@media (prefers-reduced-motion:reduce){.recbtn.on{animation:none}.progress i{transition:none}}
 </style>
 </head>
 <body>
@@ -106,7 +140,8 @@ audio{width:100%}
   <nav class="tabs" role="tablist">
     <button role="tab" data-p="src" aria-selected="false">教材</button>
     <button role="tab" data-p="practice" aria-selected="true">練習</button>
-    <button role="tab" data-p="log" aria-selected="false">記録</button>
+    <button role="tab" data-p="report" aria-selected="false">添削</button>
+    <button role="tab" data-p="settings" aria-selected="false">設定</button>
   </nav>
 
   <!-- 教材 -->
@@ -115,10 +150,9 @@ audio{width:100%}
       <h2>サンプル教材</h2>
       <div class="row" id="examples" style="flex-direction:column;align-items:stretch"></div>
     </div>
-
     <div class="card">
       <h2>自分の英文を使う</h2>
-      <div class="note">1行に「英文 | 和訳」の形で書くと和訳も出ます。普通の英文を貼るだけでもOKです（文ごとに区切ります）。</div>
+      <div class="note">1行に「英文 | 和訳」の形で書くと和訳も出ます。普通の英文を貼るだけでもOK（文ごとに区切ります）。</div>
       <div class="field"><label for="own">英文</label>
         <textarea id="own" placeholder="I'm thinking about going hiking. | ハイキングに行こうかな。"></textarea></div>
       <div class="row">
@@ -127,53 +161,65 @@ audio{width:100%}
       </div>
       <div class="sub" id="promptMsg">依頼文をClaudeのチャットに貼ると、この形式で教材を作ってくれます。</div>
     </div>
-
     <div class="card">
       <h2>お手本の音声ファイル（任意）</h2>
-      <div class="note">ポッドキャストや教材の音声を使う場合はここで選びます。選ばなければ英文を読み上げ音声で再生します。</div>
+      <div class="note">ポッドキャストなどの音声を使う場合に選びます。添削できるのは30秒以内の音声です。選ばなければ合成音声で読み上げます。</div>
       <input type="file" id="audioFile" accept="audio/*,video/mp4">
-      <div class="row"><span class="sub" id="audioName">未選択（読み上げ音声を使用）</span><button class="btn ghost" id="audioClear" hidden>解除</button></div>
+      <div class="row"><span class="sub" id="audioName">未選択（合成音声を使用）</span><button class="btn ghost small" id="audioClear" hidden>解除</button></div>
     </div>
   </section>
 
   <!-- 練習 -->
   <section class="panel" id="p-practice">
-    <div class="card" id="setupCard">
+    <div class="card">
       <div class="speed"><label for="rate">スピード</label><input type="range" id="rate" min="0.6" max="1.2" step="0.05" value="0.9"><output id="rateOut">0.90×</output></div>
-      <div class="field" id="voiceField"><label for="voice">読み上げの声</label><select id="voice"></select>
-        <div class="sub" id="voiceHint" hidden>もっと自然な声にするには、iPhoneの 設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 英語 で「Ava」「Zoe」などの<b>拡張</b>または<b>プレミアム</b>の声をダウンロードしてから、このアプリを開き直してください。</div></div>
+      <div class="field" id="voiceField"><label for="voice">お手本の声</label><select id="voice"></select>
+        <div class="sub" id="voiceHint">設定でAzureのキーを入れると、人間に近い声になります。</div></div>
       <div class="row">
+        <label class="toggle"><input type="checkbox" id="marksOn" checked> 音の変化を表示</label>
         <label class="toggle"><input type="checkbox" id="blind"> 英文を隠す</label>
         <label class="toggle"><input type="checkbox" id="hideJa"> 和訳を隠す</label>
-        <label class="toggle"><input type="checkbox" id="useAsr" checked> 自動採点</label>
       </div>
-      <div class="note"><b>イヤホンをつけて</b>から下の赤いボタンを押してください。お手本が流れると同時に録音が始まり、お手本が終わると自動で止まります。</div>
-      <div class="row"><button class="btn ghost" id="previewBtn">お手本だけ聞く</button></div>
+      <div class="row"><button class="btn ghost small" id="previewBtn">お手本だけ聞く</button></div>
     </div>
-    <div class="card"><div class="script" id="script"></div></div>
-
-    <div class="card" id="resultCard" hidden>
-      <h2>結果</h2>
-      <div id="scoreBox">
-        <div class="score"><span class="big" id="pct">0%</span><span class="sub" id="pctNote"></span></div>
-        <div class="bar" style="margin-top:8px"><i id="barFill" style="width:0"></i></div>
-      </div>
-      <div class="legend" id="legend"><span><span class="w ok">word</span> 言えた</span><span><span class="w ng">word</span> 抜けた・崩れた</span></div>
-      <div id="diff"></div>
-      <div class="field"><label>自分の録音</label><audio id="myAudio" controls playsinline></audio></div>
-      <div class="row">
-        <button class="btn ghost" id="overlayBtn" hidden>お手本と重ねて聞く</button>
-      </div>
-      <details><summary class="sub">音声認識が聞き取った文</summary><div class="heard" id="heard"></div></details>
-      <div class="err" id="asrErr"></div>
+    <div class="card">
+      <div class="script" id="script"></div>
+      <div class="legend" id="legend"><span><span class="lk">‿</span> つなげる</span><span><span class="gone">(t)</span> ほぼ消える</span><span><span class="tk weak">小さい灰色</span> 弱く短く</span><span><ruby>上<rt>カナ</rt></ruby> 実際の聞こえ方</span></div>
+    </div>
+    <div class="card" id="takesCard" hidden>
+      <h2>今回の録音</h2>
+      <div class="sub">自分の声だけを聞き返せます。いちばん良いものを「提出して添削」してください。</div>
+      <div id="takes" style="display:flex;flex-direction:column;gap:10px"></div>
     </div>
   </section>
 
-  <!-- 記録 -->
-  <section class="panel" id="p-log" hidden>
+  <!-- 添削 -->
+  <section class="panel" id="p-report" hidden>
+    <div class="card" id="progressCard" hidden>
+      <h2>添削中…</h2>
+      <div class="progress"><i id="progFill"></i></div>
+      <div class="sub" id="progText"></div>
+    </div>
+    <div class="card" id="reportCard" hidden></div>
     <div class="card">
-      <h2>練習の記録</h2>
+      <h2>これまでの添削</h2>
       <ul class="hist" id="hist"></ul>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section class="panel" id="p-settings" hidden>
+    <div class="card">
+      <h2>Azure（発音評価・お手本の声）</h2>
+      <div class="field"><label for="azKey">キー（KEY 1）</label><input type="password" id="azKey" autocomplete="off" placeholder="32文字の英数字"></div>
+      <div class="field"><label for="azRegion">場所/リージョン</label>
+        <select id="azRegion">
+          <option value="eastus">East US（eastus）</option><option value="japaneast">Japan East（japaneast）</option>
+          <option value="westus2">West US 2（westus2）</option><option value="southeastasia">Southeast Asia（southeastasia）</option>
+          <option value="westeurope">West Europe（westeurope）</option>
+        </select></div>
+      <div class="row"><button class="btn" id="azSave">保存して接続テスト</button></div>
+      <div id="azMsg" class="sub">キーはこのiPhoneの中にだけ保存されます。</div>
     </div>
     <div class="card">
       <h2>ホーム画面に追加</h2>
@@ -187,6 +233,7 @@ audio{width:100%}
   <span class="status" id="status">待機中</span>
 </div></div>
 
+<script src="coach.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
