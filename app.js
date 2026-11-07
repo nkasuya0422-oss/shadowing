@@ -238,33 +238,51 @@ async function prepareModel(){
 }
 
 function speakDevice(text, onStart){
-  return new Promise(res => {
+  return new Promise((res, rej) => {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-US"; u.rate = Number($("rate").value);
     const v = deviceVoices.find(x => "dev:" + x.name === $("voice").value); if (v){ u.voice = v; u.lang = v.lang; }
-    u.onstart = () => onStart && onStart(); u.onend = res; u.onerror = res;
+    let started = false;
+    u.onstart = () => { started = true; onStart && onStart(); };
+    u.onend = () => started ? res() : rej(new Error("tts-device"));
+    u.onerror = e => (e && e.error === "interrupted" || e && e.error === "canceled") ? res() : rej(new Error("tts-device"));
     synth.speak(u);
   });
 }
-/* iOS only lets audio start right after a tap. One shared player is "unlocked" synchronously
-   inside each tap handler, and every later clip reuses that same element. */
-const modelPlayer = new Audio();
-modelPlayer.setAttribute("playsinline", "");
-let SILENT = null;
+/* Model playback goes through Web Audio. The AudioContext is created/resumed inside the tap,
+   and once running it keeps playing even after the microphone starts (an <audio> element on
+   iOS loses its permission when recording begins, which made takes stop after a few seconds). */
+let actx = null, currentSrc = null;
+const bufCache = new Map();
 function unlockAudio(){
   try {
-    if (!SILENT) SILENT = URL.createObjectURL(wav(new Float32Array(1600)));
-    modelPlayer.src = SILENT; modelPlayer.play().catch(() => {});
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!actx) actx = new AC();
+    if (actx.state !== "running") actx.resume();
+    const b = actx.createBuffer(1, 1, 22050), src = actx.createBufferSource();
+    src.buffer = b; src.connect(actx.destination); src.start(0);
   } catch(e){}
+  if (synth && $("voice").value.startsWith("dev:")){ try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; synth.speak(u); } catch(e){} }
 }
-function playUrl(url, rate, onStart){
-  return new Promise((res, rej) => {
-    const p = modelPlayer;
-    p.onplaying = () => { onStart && onStart(); onStart = null; };
-    p.onended = () => res(); p.onerror = () => rej(new Error("play"));
-    p.src = url;
-    p.playbackRate = rate || 1; p.preservesPitch = true;
-    p.play().catch(() => rej(new Error("play")));
+async function getBuf(url){
+  if (bufCache.has(url)) return bufCache.get(url);
+  const ab = await (await fetch(url)).arrayBuffer();
+  const buf = await new Promise((res, rej) => actx.decodeAudioData(ab, res, rej));
+  bufCache.set(url, buf);
+  return buf;
+}
+async function playUrl(url, rate, onStart){
+  if (!actx) unlockAudio();
+  if (actx.state !== "running"){ try { await actx.resume(); } catch(e){} }
+  if (actx.state !== "running") throw new Error("play");
+  const buf = await getBuf(url);
+  return new Promise(res => {
+    const src = actx.createBufferSource();
+    src.buffer = buf; src.playbackRate.value = rate || 1;
+    src.connect(actx.destination);
+    src.onended = () => { if (currentSrc === src) currentSrc = null; res(); };
+    currentSrc = src; src.start();
+    onStart && onStart();
   });
 }
 
@@ -287,7 +305,7 @@ async function playModel(onSentence){
 function stopModel(){
   playToken++;
   try { synth && synth.cancel(); } catch(e){}
-  try { modelPlayer.pause(); } catch(e){}
+  if (currentSrc){ try { currentSrc.stop(); } catch(e){} currentSrc = null; }
 }
 
 let previewing = false;
@@ -325,6 +343,7 @@ async function startSession(){
   let stream;
   try { stream = await getMic(); }
   catch(e){ $("recBtn").disabled = false; $("status").textContent = "マイク不可"; toast("マイクを使えませんでした。iPhoneの 設定 → Safari → マイク を「許可」にして、もう一度試してください。"); return; }
+  if (actx && actx.state !== "running"){ try { await actx.resume(); } catch(e){} }
   const mime = pickMime();
   if (mime === null){ $("recBtn").disabled = false; toast("このブラウザは録音に対応していません。"); return; }
 
@@ -339,7 +358,9 @@ async function startSession(){
   try {
     await playModel(i => { s.starts[i] = (performance.now() - s.t0) / 1000; mark(i); $("status").textContent = `${i+1}/${current.sentences.length}文`; });
   } catch(e){
-    if (session === s){ await finishSession(); alertInline("お手本を再生できませんでした。イヤホンの接続と音量を確認して、もう一度赤いボタンを押してください。"); }
+    if (session === s){ await finishSession(); alertInline(String(e && e.message) === "tts-device"
+      ? "iPhoneの読み上げ音声は録音中に鳴らせないことがあります。設定タブでAzureのキーを入れて、Azureの声で試してください。"
+      : "お手本を再生できませんでした。イヤホンの接続と音量を確認して、もう一度赤いボタンを押してください。"); }
     return;
   }
   if (session !== s) return;
@@ -407,9 +428,9 @@ function renderTakes(){
 /* ---------- submission: audio → 16 kHz WAV per sentence → Azure pronunciation assessment ---------- */
 async function decode16k(blob){
   const AC = window.AudioContext || window.webkitAudioContext;
-  const ctx = new AC();
+  const ctx = actx || new AC();
   const buf = await new Promise((res, rej) => { blob.arrayBuffer().then(ab => ctx.decodeAudioData(ab, res, rej)).catch(rej); });
-  try { ctx.close(); } catch(e){}
+  if (ctx !== actx){ try { ctx.close(); } catch(e){} }
   const len = Math.ceil(buf.duration * 16000);
   const off = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, len, 16000);
   const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
