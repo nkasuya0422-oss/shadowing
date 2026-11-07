@@ -121,15 +121,30 @@ $("audioClear").addEventListener("click", () => {
 /* ---------- TTS ---------- */
 const synth = window.speechSynthesis;
 let voices = [];
+/* Only natural-sounding voices: Apple's human voices, Google and Microsoft neural voices.
+   Novelty voices (Bells, Zarvox…) and the robotic Eloquence set (Eddy, Flo, Grandma…) are dropped. */
+const NATURAL = /\b(Samantha|Ava|Allison|Susan|Zoe|Nicky|Joelle|Noelle|Evan|Nathan|Tom|Aaron|Alex|Daniel|Kate|Serena|Arthur|Martha|Oliver|Stephanie|Jamie|Karen|Lee|Catherine|Gordon|Matilda|Moira|Tessa|Rishi|Veena|Fiona|Google|Aria|Jenny|Guy|Michelle|Ana|Christopher|Eric|Roger|Steffan|Sonia|Ryan|Libby|Natasha|William)\b/i;
+const ROBOTIC = /\b(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Deranged|Good News|Hysterical|Jester|Junior|Kathy|Organ|Pipe Organ|Princess|Ralph|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley|Victoria)\b/i;
+const REGION = {US:"アメリカ", GB:"イギリス", AU:"オーストラリア", IE:"アイルランド", IN:"インド", ZA:"南アフリカ", CA:"カナダ", NZ:"ニュージーランド", SC:"スコットランド"};
+const quality = v => /premium/i.test(v.name) ? 2 : /enhanced|neural|natural|online/i.test(v.name) ? 1 : 0;
 function loadVoices(){
   if (!synth) return;
-  voices = synth.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang));
-  const rank = v => (/en-US/i.test(v.lang)?0:1) + (/(Samantha|Ava|Allison|Nicky|Google US|Jenny|Aria)/i.test(v.name)?-2:0) + (/(Enhanced|Premium)/i.test(v.name)?-1:0);
-  voices.sort((a,b) => rank(a) - rank(b));
+  const en = synth.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang) && !ROBOTIC.test(v.name));
+  voices = en.filter(v => NATURAL.test(v.name));
+  if (!voices.length) voices = en;          // unknown platform: keep everything except the robotic ones
+  const rank = v => -quality(v) * 10 + (/en[-_]US/i.test(v.lang) ? 0 : 1);
+  voices.sort((a,b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   const sel = $("voice"), keep = store.get("voice", "");
   sel.innerHTML = voices.length ? "" : "<option value=''>標準の英語音声</option>";
-  voices.forEach(v => { const o = document.createElement("option"); o.value = v.name; o.textContent = `${v.name} (${v.lang})`; sel.appendChild(o); });
+  voices.forEach(v => {
+    const o = document.createElement("option"); o.value = v.name;
+    const region = REGION[(v.lang.split(/[-_]/)[1] || "").toUpperCase()] || v.lang;
+    const name = v.name.replace(/\s*\((Premium|Enhanced|English.*?)\)/gi, "").replace(/^(Microsoft|Google)\s+/,"$1 ");
+    o.textContent = `${name}（${region}${quality(v) === 2 ? "・最高音質" : quality(v) === 1 ? "・高音質" : ""}）`;
+    sel.appendChild(o);
+  });
   if (keep && voices.some(v => v.name === keep)) sel.value = keep;
+  $("voiceHint").hidden = voices.some(v => quality(v) > 0);
 }
 if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
 $("voice").addEventListener("change", e => store.set("voice", e.target.value));
