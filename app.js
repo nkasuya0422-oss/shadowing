@@ -109,6 +109,8 @@ function sentenceEl(text, judge){
 /* ---------- script ---------- */
 function setScript(s){
   if (session) return;
+  if (repeating) stopRepeat();
+  repIdx = 0;
   current = s; store.set("script", s);
   render();
 }
@@ -121,6 +123,8 @@ function render(){
     d.className = "sent"; d.id = "sent-" + i;
     d.innerHTML = `<span class="no">${String(i+1).padStart(2,"0")}</span><span></span>`;
     d.children[1].appendChild(sentenceEl(s.en));
+    if (i === repIdx) d.classList.add("sel");
+    d.addEventListener("click", () => onSentenceTap(i));
     if (s.ja){ const j = document.createElement("div"); j.className = "ja"; j.textContent = s.ja; d.children[1].appendChild(j); }
     box.appendChild(d);
   });
@@ -289,11 +293,12 @@ async function playUrl(url, rate, onStart){
 
 /* plays the model; onSentence(i) fires as each sentence actually starts */
 let playToken = 0;
-async function playModel(onSentence){
+async function playModel(onSentence, from = 0, only = false){
   const token = ++playToken;
   if (modelUrl){ await playUrl(modelUrl, Number($("rate").value), () => onSentence && onSentence(0)); return; }
   const v = $("voice").value, r = Number($("rate").value);
-  for (let i = 0; i < current.sentences.length; i++){
+  const last = only ? from : current.sentences.length - 1;
+  for (let i = from; i <= last; i++){
     if (token !== playToken) return;
     const text = current.sentences[i].en, start = () => onSentence && onSentence(i);
     if (v.startsWith("az:")) await playUrl(await azClip(text, v.slice(3), r), 0, start);
@@ -397,7 +402,65 @@ function setRecUI(on){
   if (!on) $("status").textContent = "待機中";
   ["previewBtn","ownBtn"].forEach(id => $(id).disabled = on);
 }
-$("recBtn").addEventListener("click", () => { if (session) finishSession(); else { unlockAudio(); startSession(); } });
+$("recBtn").addEventListener("click", () => {
+  if (mode === "repeat"){ if (repeating) stopRepeat(); else { unlockAudio(); startRepeat(); } return; }
+  if (session) finishSession(); else { unlockAudio(); startSession(); }
+});
+
+/* ---------- 練習（リピート）mode: loops the model until stopped, no microphone ---------- */
+let mode = store.get("mode", "repeat"), repeating = false, repIdx = 0, repLoops = 0;
+function setMode(m){
+  if (session || repeating) return;
+  mode = m; store.set("mode", m);
+  document.querySelectorAll("#modeSeg button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.m === m)));
+  $("repeatOpts").hidden = m !== "repeat";
+  $("script").classList.toggle("repeat-mode", m === "repeat");
+  $("modeNote").textContent = m === "repeat"
+    ? "止めるまでお手本をくり返します。録音はしません。文をタップすると、その文から（または、その文だけ）くり返します。"
+    : "イヤホンをつけて赤いボタンを押すと、お手本に合わせて録音します。良い録音は「提出して添削」へ。";
+  $("takesCard").hidden = m !== "record" || !takes.length;
+  $("recBtn").classList.toggle("play", m === "repeat");
+  $("recLabel").textContent = m === "repeat" ? "リピート開始" : "シャドーイング開始";
+}
+document.querySelectorAll("#modeSeg button").forEach(b => b.addEventListener("click", () => setMode(b.dataset.m)));
+$("repScope").value = store.get("repScope", "all");
+$("repGap").value = String(store.get("repGap", 1500));
+$("repScope").addEventListener("change", e => { store.set("repScope", e.target.value); if (repeating) restartRepeat(); });
+$("repGap").addEventListener("change", e => store.set("repGap", Number(e.target.value)));
+
+function onSentenceTap(i){
+  if (mode !== "repeat") return;
+  repIdx = i;
+  document.querySelectorAll(".sent").forEach((el, k) => el.classList.toggle("sel", k === i));
+  if (repeating) restartRepeat();
+}
+let repRun = 0;
+async function startRepeat(){
+  const run = ++repRun;
+  repeating = true; repLoops = 0;
+  $("recBtn").classList.add("on"); $("recLabel").textContent = "停止";
+  ["ownBtn"].forEach(id => $(id).disabled = true);
+  try { $("status").textContent = "準備中"; await prepareModel(); }
+  catch(e){ if (run === repRun) stopRepeat(); azError(e); return; }
+  let from = repIdx;
+  while (repeating && run === repRun){
+    const one = $("repScope").value === "one" && !modelUrl;
+    $("status").textContent = `${repLoops + 1}回目`;
+    try { await playModel(mark, one ? repIdx : from, one); }
+    catch(e){ if (run === repRun){ stopRepeat(); alertInline("お手本を再生できませんでした。音量を確認して、もう一度押してください。"); } return; }
+    if (!repeating || run !== repRun) return;
+    mark(one ? repIdx : -1);
+    repLoops++; from = 0;
+    await wait(Number($("repGap").value) || 1500);
+  }
+}
+function restartRepeat(){ stopModel(); startRepeat(); }
+function stopRepeat(){
+  repRun++; repeating = false; stopModel(); mark(-1);
+  $("recBtn").classList.remove("on"); $("recLabel").textContent = "リピート開始";
+  $("ownBtn").disabled = false;
+  $("status").textContent = repLoops ? `${repLoops}回 再生` : "待機中";
+}
 function toast(msg){ $("status").textContent = "エラー"; alertInline(msg); }
 function alertInline(msg){
   let n = $("inlineMsg");
@@ -413,7 +476,7 @@ function azError(e){
 }
 
 function renderTakes(){
-  $("takesCard").hidden = !takes.length;
+  $("takesCard").hidden = !takes.length || mode !== "record";
   const box = $("takes"); box.innerHTML = "";
   takes.forEach((t, k) => {
     const d = document.createElement("div"); d.className = "take";
@@ -761,5 +824,5 @@ async function loadDaily(){
   if (t && store.get("dailySeen", "") !== today && !session){ store.set("dailySeen", today); setScript(asScript(t)); }
 }
 
-render(); applyView(); loadVoices(); renderHist(); loadDaily();
+render(); applyView(); loadVoices(); renderHist(); setMode(mode); loadDaily();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

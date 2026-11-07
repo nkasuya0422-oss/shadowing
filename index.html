@@ -68,6 +68,14 @@ input[type=file]{font-size:.85rem;color:var(--muted)}
 .script{display:flex;flex-direction:column;gap:4px}
 .sent{display:grid;grid-template-columns:26px 1fr;gap:8px;padding:9px;border-radius:10px;border:1px solid transparent}
 .sent.now{border-color:var(--accent);background:var(--accent-soft)}
+.sent.sel{box-shadow:inset 3px 0 0 var(--accent)}
+.repeat-mode .sent{cursor:pointer}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--bg);border-radius:12px;padding:4px}
+.seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;padding:10px 4px;border-radius:9px}
+.seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.recbtn.play{background:var(--accent);color:var(--accent-ink)}
+.recbtn.play .dot{width:0;height:0;border-radius:0;background:none;border-left:12px solid currentColor;border-top:7px solid transparent;border-bottom:7px solid transparent}
+.recbtn.play.on .dot{width:12px;height:12px;border:0;background:currentColor;border-radius:2px}
 .no{font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
 .en{font-size:1.08rem;font-weight:500;line-height:2.3}
 .ja{font-size:.85rem;color:var(--muted)}
@@ -177,6 +185,17 @@ audio{width:100%;height:40px}
   <!-- 練習 -->
   <section class="panel" id="p-practice">
     <div class="card">
+      <div class="seg" id="modeSeg" role="tablist">
+        <button data-m="repeat" aria-selected="true">練習（リピート）</button>
+        <button data-m="record" aria-selected="false">録音（提出用）</button>
+      </div>
+      <div class="grid2" id="repeatOpts">
+        <div class="field"><label for="repScope">くり返す範囲</label>
+          <select id="repScope"><option value="all">全文</option><option value="one">選んだ1文だけ</option></select></div>
+        <div class="field"><label for="repGap">くり返しの間</label>
+          <select id="repGap"><option value="800">短め（0.8秒）</option><option value="1500" selected>ふつう（1.5秒）</option><option value="3000">長め（3秒）</option></select></div>
+      </div>
+      <div class="sub" id="modeNote"></div>
       <div class="speed"><label for="rate">スピード</label><input type="range" id="rate" min="0.6" max="1.2" step="0.05" value="0.9"><output id="rateOut">0.90×</output></div>
       <div class="field" id="voiceField"><label for="voice">お手本の声</label><select id="voice"></select>
         <div class="sub" id="voiceHint">設定でAzureのキーを入れると、人間に近い声になります。</div></div>
@@ -185,7 +204,7 @@ audio{width:100%;height:40px}
         <label class="toggle"><input type="checkbox" id="blind"> 英文を隠す</label>
         <label class="toggle"><input type="checkbox" id="hideJa"> 和訳を隠す</label>
       </div>
-      <div class="row"><button class="btn ghost small" id="previewBtn">お手本だけ聞く</button></div>
+      <div class="row" hidden><button class="btn ghost small" id="previewBtn">お手本だけ聞く</button></div>
     </div>
     <div class="card">
       <div class="script" id="script"></div>
