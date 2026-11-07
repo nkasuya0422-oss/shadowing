@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shadowing</title>
+<meta name="theme-color" content="#2a55c4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Shadowing">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  /* one narrow column; three tabs (教材 / 練習 / 記録); big record button fixed at bottom */
+  --bg:#eef2f5; --surface:#ffffff; --ink:#13202c; --muted:#5b6b7a; --line:#d5dde5;
+  --accent:#2a55c4; --accent-ink:#ffffff; --accent-soft:#e3eafb;
+  --hit:#1d7f55; --hit-soft:#ddf2e8; --miss:#bf3d29; --miss-soft:#fbe4df; --rec:#d23c3c;
+  --body:-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0f161d; --surface:#17212b; --ink:#e6edf3; --muted:#93a3b2; --line:#2a3846;
+    --accent:#7c9cf0; --accent-ink:#0d1520; --accent-soft:#1f2c47;
+    --hit:#5cc994; --hit-soft:#16352a; --miss:#f08a76; --miss-soft:#40211b; --rec:#ff6b6b;
+    color-scheme: dark;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6}
+.wrap{max-width:640px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top)) 16px calc(130px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+h1{font-weight:800;font-size:1.5rem;margin:0;letter-spacing:-.01em}
+h2{font-weight:700;font-size:1.05rem;margin:0}
+.sub{color:var(--muted);font-size:.85rem}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tabs button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:600;padding:9px 4px;border-radius:9px}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.panel{display:flex;flex-direction:column;gap:14px}
+.panel[hidden],[hidden]{display:none!important}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+label{font-size:.85rem;color:var(--muted);font-weight:600}
+.field{display:flex;flex-direction:column;gap:4px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+select,input[type=text],textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+textarea{min-height:130px;resize:vertical}
+input[type=file]{font-size:.85rem;color:var(--muted)}
+.btn{font:inherit;font-weight:700;border-radius:10px;padding:11px 16px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.45}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.ex{display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+.ex.on{border-color:var(--accent);background:var(--accent-soft)}
+.chip{font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.script{display:flex;flex-direction:column;gap:4px}
+.sent{display:grid;grid-template-columns:26px 1fr;gap:8px;padding:9px;border-radius:10px;border:1px solid transparent}
+.sent.now{border-color:var(--accent);background:var(--accent-soft)}
+.sent .no{font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+.sent .en{font-size:1.05rem;font-weight:500}
+.sent .ja{font-size:.85rem;color:var(--muted)}
+.blind .sent .en{color:transparent;text-shadow:0 0 10px var(--muted);user-select:none}
+.hideja .sent .ja{display:none}
+.toggle{display:flex;align-items:center;gap:6px;font-size:.9rem;color:var(--ink);font-weight:500}
+.speed{display:flex;align-items:center;gap:8px}
+.speed input{flex:1}
+.speed output{font-variant-numeric:tabular-nums;font-weight:700;min-width:44px;text-align:right}
+.note{font-size:.85rem;color:var(--muted);background:var(--bg);border-radius:10px;padding:10px 12px}
+.dock{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.dock .in{max-width:640px;margin:0 auto;display:flex;gap:10px;align-items:center}
+.recbtn{flex:1;font:inherit;font-weight:800;font-size:1.05rem;border:0;border-radius:14px;padding:15px;background:var(--rec);color:#fff;display:flex;align-items:center;justify-content:center;gap:10px}
+.recbtn .dot{width:12px;height:12px;border-radius:50%;background:#fff}
+.recbtn.on .dot{border-radius:2px}
+.recbtn.on{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.75}}
+.dock .status{font-size:.8rem;color:var(--muted);min-width:72px;text-align:right;font-variant-numeric:tabular-nums}
+.score{display:flex;align-items:baseline;gap:10px}
+.score .big{font-weight:800;font-size:2.6rem;line-height:1;font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:999px;background:var(--bg);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--hit)}
+#diff p{margin:0 0 6px;font-size:1.05rem;line-height:1.9}
+.w{padding:1px 3px;border-radius:4px}
+.w.ok{background:var(--hit-soft);color:var(--hit)}
+.w.ng{background:var(--miss-soft);color:var(--miss);text-decoration:underline wavy}
+.legend{display:flex;gap:12px;font-size:.8rem;color:var(--muted)}
+audio{width:100%}
+.heard{font-size:.9rem;color:var(--muted);white-space:pre-wrap}
+.hist{list-style:none;margin:0;padding:0}
+.hist li{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.hist li:last-child{border-bottom:0}
+.hist .s{font-weight:700;font-variant-numeric:tabular-nums}
+.err{color:var(--miss);font-size:.85rem}
+.ok-msg{color:var(--hit);font-size:.85rem}
+@media (max-width:400px){.grid2{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.recbtn.on{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Shadowing</h1><span class="sub" id="curTitle"></span></header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-p="src" aria-selected="false">教材</button>
+    <button role="tab" data-p="practice" aria-selected="true">練習</button>
+    <button role="tab" data-p="log" aria-selected="false">記録</button>
+  </nav>
+
+  <!-- 教材 -->
+  <section class="panel" id="p-src" hidden>
+    <div class="card">
+      <h2>サンプル教材</h2>
+      <div class="row" id="examples" style="flex-direction:column;align-items:stretch"></div>
+    </div>
+
+    <div class="card">
+      <h2>自分の英文を使う</h2>
+      <div class="note">1行に「英文 | 和訳」の形で書くと和訳も出ます。普通の英文を貼るだけでもOKです（文ごとに区切ります）。</div>
+      <div class="field"><label for="own">英文</label>
+        <textarea id="own" placeholder="I'm thinking about going hiking. | ハイキングに行こうかな。"></textarea></div>
+      <div class="row">
+        <button class="btn" id="ownBtn">この英文で練習する</button>
+        <button class="btn ghost" id="promptBtn">Claude用の依頼文をコピー</button>
+      </div>
+      <div class="sub" id="promptMsg">依頼文をClaudeのチャットに貼ると、この形式で教材を作ってくれます。</div>
+    </div>
+
+    <div class="card">
+      <h2>お手本の音声ファイル（任意）</h2>
+      <div class="note">ポッドキャストや教材の音声を使う場合はここで選びます。選ばなければ英文を読み上げ音声で再生します。</div>
+      <input type="file" id="audioFile" accept="audio/*,video/mp4">
+      <div class="row"><span class="sub" id="audioName">未選択（読み上げ音声を使用）</span><button class="btn ghost" id="audioClear" hidden>解除</button></div>
+    </div>
+  </section>
+
+  <!-- 練習 -->
+  <section class="panel" id="p-practice">
+    <div class="card" id="setupCard">
+      <div class="speed"><label for="rate">スピード</label><input type="range" id="rate" min="0.6" max="1.2" step="0.05" value="0.9"><output id="rateOut">0.90×</output></div>
+      <div class="field" id="voiceField"><label for="voice">読み上げの声</label><select id="voice"></select></div>
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="blind"> 英文を隠す</label>
+        <label class="toggle"><input type="checkbox" id="hideJa"> 和訳を隠す</label>
+        <label class="toggle"><input type="checkbox" id="useAsr" checked> 自動採点</label>
+      </div>
+      <div class="note"><b>イヤホンをつけて</b>から下の赤いボタンを押してください。お手本が流れると同時に録音が始まり、お手本が終わると自動で止まります。</div>
+      <div class="row"><button class="btn ghost" id="previewBtn">お手本だけ聞く</button></div>
+    </div>
+    <div class="card"><div class="script" id="script"></div></div>
+
+    <div class="card" id="resultCard" hidden>
+      <h2>結果</h2>
+      <div id="scoreBox">
+        <div class="score"><span class="big" id="pct">0%</span><span class="sub" id="pctNote"></span></div>
+        <div class="bar" style="margin-top:8px"><i id="barFill" style="width:0"></i></div>
+      </div>
+      <div class="legend" id="legend"><span><span class="w ok">word</span> 言えた</span><span><span class="w ng">word</span> 抜けた・崩れた</span></div>
+      <div id="diff"></div>
+      <div class="field"><label>自分の録音</label><audio id="myAudio" controls playsinline></audio></div>
+      <div class="row">
+        <button class="btn ghost" id="overlayBtn" hidden>お手本と重ねて聞く</button>
+      </div>
+      <details><summary class="sub">音声認識が聞き取った文</summary><div class="heard" id="heard"></div></details>
+      <div class="err" id="asrErr"></div>
+    </div>
+  </section>
+
+  <!-- 記録 -->
+  <section class="panel" id="p-log" hidden>
+    <div class="card">
+      <h2>練習の記録</h2>
+      <ul class="hist" id="hist"></ul>
+    </div>
+    <div class="card">
+      <h2>ホーム画面に追加</h2>
+      <div class="note">Safariの共有ボタン →「ホーム画面に追加」で、アプリのように起動できます。</div>
+    </div>
+  </section>
+</div>
+
+<div class="dock"><div class="in">
+  <button class="recbtn" id="recBtn"><span class="dot"></span><span id="recLabel">シャドーイング開始</span></button>
+  <span class="status" id="status">待機中</span>
+</div></div>
+
+<script src="app.js"></script>
+</body>
+</html>
