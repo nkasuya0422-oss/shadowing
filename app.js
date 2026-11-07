@@ -386,7 +386,7 @@ async function finishSession(){
   s.end = (performance.now() - s.t0) / 1000;
   if (s.rec && s.rec.state !== "inactive") await new Promise(res => { s.rec.onstop = res; try { s.rec.stop(); } catch(e){ res(); } });
   try { wakeLock && wakeLock.release(); } catch(e){} wakeLock = null;
-  releaseMic();
+  releaseMic(); setAudioSession("auto");
   session = null; setRecUI(false);
   if (!s.chunks.length){ toast("録音できませんでした。マイクの許可を確認してください。"); return; }
   const blob = new Blob(s.chunks, {type: s.chunks[0].type || "audio/mp4"});
@@ -403,8 +403,8 @@ function setRecUI(on){
   ["previewBtn","ownBtn"].forEach(id => $(id).disabled = on);
 }
 $("recBtn").addEventListener("click", () => {
-  if (mode === "repeat"){ if (repeating) stopRepeat(); else { unlockAudio(); unlockRepeatAudio(); startRepeat(); } return; }
-  if (session) finishSession(); else { unlockAudio(); startSession(); }
+  if (mode === "repeat"){ if (repeating) stopRepeat(); else { unlockRepeatAudio(); unlockAudio(); startRepeat(); } return; }
+  if (session) finishSession(); else { setAudioSession("play-and-record"); unlockAudio(); startSession(); }
 });
 
 /* ---------- 練習（リピート）mode: loops the model until stopped, no microphone ---------- */
@@ -449,7 +449,11 @@ let repRun = 0;
 const repAudio = new Audio();
 repAudio.setAttribute("playsinline", "");
 let repUrl = null, repOffsets = null, repLastT = 0, SIL16 = null;
+/* Safari's Audio Session API: "auto" starts out as ambient, which iOS silences when the screen locks.
+   "playback" behaves like a music app and keeps going in the background. */
+function setAudioSession(type){ try { if ("audioSession" in navigator) navigator.audioSession.type = type; } catch(e){} }
 function unlockRepeatAudio(){
+  setAudioSession("playback");
   try {
     if (!SIL16) SIL16 = URL.createObjectURL(wav(new Float32Array(1600)));
     repAudio.src = SIL16; repAudio.loop = false; repAudio.play().catch(() => {});
@@ -519,7 +523,9 @@ async function startRepeat(){
         const o = repOffsets.find(x => x.i === repIdx); if (o) repAudio.currentTime = o.t;
       }
       await repAudio.play();
+      if (actx && actx.state === "running"){ try { await actx.suspend(); } catch(e){} }
       setMediaSession();
+      if ("mediaSession" in navigator) try { navigator.mediaSession.playbackState = "playing"; } catch(e){}
       $("modeNote").textContent = "画面を消しても・ほかのアプリに切り替えても再生が続きます。ロック画面から一時停止できます。";
       return;
     } catch(e){
@@ -545,6 +551,7 @@ async function startRepeat(){
 function restartRepeat(){ stopModel(); try { repAudio.pause(); } catch(e){} startRepeat(); }
 function stopRepeat(){
   repRun++; repeating = false; stopModel(); mark(-1);
+  setAudioSession("auto");
   try { repAudio.pause(); } catch(e){}
   if ("mediaSession" in navigator) try { navigator.mediaSession.playbackState = "none"; } catch(e){}
   $("recBtn").classList.remove("on"); $("recLabel").textContent = "リピート開始";
