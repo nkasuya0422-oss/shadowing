@@ -403,7 +403,7 @@ function setRecUI(on){
   ["previewBtn","ownBtn"].forEach(id => $(id).disabled = on);
 }
 $("recBtn").addEventListener("click", () => {
-  if (mode === "repeat"){ if (repeating) stopRepeat(); else { unlockAudio(); startRepeat(); } return; }
+  if (mode === "repeat"){ if (repeating) stopRepeat(); else { unlockAudio(); unlockRepeatAudio(); startRepeat(); } return; }
   if (session) finishSession(); else { unlockAudio(); startSession(); }
 });
 
@@ -426,22 +426,110 @@ document.querySelectorAll("#modeSeg button").forEach(b => b.addEventListener("cl
 $("repScope").value = store.get("repScope", "all");
 $("repGap").value = String(store.get("repGap", 1500));
 $("repScope").addEventListener("change", e => { store.set("repScope", e.target.value); if (repeating) restartRepeat(); });
-$("repGap").addEventListener("change", e => store.set("repGap", Number(e.target.value)));
+$("repGap").addEventListener("change", e => { store.set("repGap", Number(e.target.value)); if (repeating) restartRepeat(); });
+let rateTimer = null;
+$("rate").addEventListener("change", () => { if (repeating){ clearTimeout(rateTimer); rateTimer = setTimeout(restartRepeat, 300); } });
+$("voice").addEventListener("change", () => { if (repeating) restartRepeat(); });
 
 function onSentenceTap(i){
   if (mode !== "repeat") return;
   repIdx = i;
   document.querySelectorAll(".sent").forEach((el, k) => el.classList.toggle("sel", k === i));
-  if (repeating) restartRepeat();
+  if (!repeating) return;
+  if (repOffsets && repAudio.src && !repAudio.paused && $("repScope").value === "all"){
+    const o = repOffsets.find(x => x.i === i); if (o){ repAudio.currentTime = o.t; return; }
+  }
+  restartRepeat();
 }
 let repRun = 0;
+/* Background playback: with an Azure voice (or an audio file) the whole loop is rendered into one
+   WAV and played by a looping <audio> element, which iOS keeps playing with the screen locked or
+   the app in the background, with lock-screen controls via Media Session. The device's built-in
+   voice can't be rendered to a file, so it falls back to the in-app loop (foreground only). */
+const repAudio = new Audio();
+repAudio.setAttribute("playsinline", "");
+let repUrl = null, repOffsets = null, repLastT = 0, SIL16 = null;
+function unlockRepeatAudio(){
+  try {
+    if (!SIL16) SIL16 = URL.createObjectURL(wav(new Float32Array(1600)));
+    repAudio.src = SIL16; repAudio.loop = false; repAudio.play().catch(() => {});
+  } catch(e){}
+}
+async function buildLoop(){
+  const gap = (Number($("repGap").value) || 1500) / 1000;
+  if (modelUrl) return {url: modelUrl, offsets: null, rate: Number($("rate").value), own: false};
+  const v = $("voice").value.slice(3), r = Number($("rate").value);
+  const one = $("repScope").value === "one";
+  const idx = one ? [repIdx] : current.sentences.map((_, i) => i);
+  const bufs = [];
+  for (const i of idx) bufs.push(await getBuf(await azClip(current.sentences[i].en, v, r)));
+  const sr = bufs[0].sampleRate, between = Math.round(0.3 * sr), tail = Math.round(gap * sr);
+  const total = bufs.reduce((n, b, k) => n + b.length + (k < bufs.length - 1 ? between : tail), 0);
+  const out = new Float32Array(total), offsets = [];
+  let pos = 0;
+  bufs.forEach((b, k) => {
+    offsets.push({i: idx[k], t: pos / sr});
+    out.set(b.getChannelData(0), pos); pos += b.length + (k < bufs.length - 1 ? between : tail);
+  });
+  return {url: URL.createObjectURL(wav(out, sr)), offsets, rate: 1, own: true};
+}
+function setMediaSession(){
+  if (!("mediaSession" in navigator)) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({title: current.title, artist: "Shadowing リピート",
+      artwork: [{src: "icon-512.png", sizes: "512x512", type: "image/png"}]});
+    navigator.mediaSession.setActionHandler("play", () => repAudio.play().catch(() => {}));
+    navigator.mediaSession.setActionHandler("pause", () => repAudio.pause());
+    navigator.mediaSession.setActionHandler("stop", () => stopRepeat());
+    const seekBy = d => { if (!repOffsets) return; const t = repAudio.currentTime; let k = repOffsets.findIndex((o, n) => t < (repOffsets[n+1] ? repOffsets[n+1].t : Infinity)); k = Math.max(0, Math.min(repOffsets.length - 1, k + d)); repAudio.currentTime = repOffsets[k].t; };
+    navigator.mediaSession.setActionHandler("previoustrack", () => seekBy(-1));
+    navigator.mediaSession.setActionHandler("nexttrack", () => seekBy(1));
+  } catch(e){}
+}
+repAudio.addEventListener("timeupdate", () => {
+  if (!repeating || repAudio.src === SIL16) return;
+  const t = repAudio.currentTime;
+  if (t + 0.5 < repLastT){ repLoops++; }
+  repLastT = t;
+  $("status").textContent = `${repLoops + 1}回目`;
+  if (repOffsets && !document.hidden){
+    let cur = repOffsets[0].i;
+    for (const o of repOffsets) if (t >= o.t) cur = o.i;
+    mark(cur);
+  }
+});
+repAudio.addEventListener("pause", () => { if (repeating && repAudio.src !== SIL16) $("status").textContent = "一時停止"; });
+
 async function startRepeat(){
   const run = ++repRun;
-  repeating = true; repLoops = 0;
+  repeating = true; repLoops = 0; repLastT = 0;
   $("recBtn").classList.add("on"); $("recLabel").textContent = "停止";
-  ["ownBtn"].forEach(id => $(id).disabled = true);
+  $("ownBtn").disabled = true;
   try { $("status").textContent = "準備中"; await prepareModel(); }
   catch(e){ if (run === repRun) stopRepeat(); azError(e); return; }
+
+  if (usingAzureVoice() || modelUrl){
+    try {
+      const L = await buildLoop();
+      if (run !== repRun) return;
+      if (repUrl && repUrl !== modelUrl) URL.revokeObjectURL(repUrl);
+      repUrl = L.own ? L.url : null; repOffsets = L.offsets;
+      repAudio.src = L.url; repAudio.loop = true; repAudio.playbackRate = L.rate; repAudio.preservesPitch = true;
+      if (repOffsets && $("repScope").value === "all" && repIdx > 0){
+        const o = repOffsets.find(x => x.i === repIdx); if (o) repAudio.currentTime = o.t;
+      }
+      await repAudio.play();
+      setMediaSession();
+      $("modeNote").textContent = "画面を消しても・ほかのアプリに切り替えても再生が続きます。ロック画面から一時停止できます。";
+      return;
+    } catch(e){
+      if (run !== repRun) return;
+      azError(e);                                  // fall through to the in-app loop
+    }
+  } else {
+    $("modeNote").textContent = "iPhone内蔵の声はアプリを開いている間だけ再生できます。画面を消しても続けたいときは、設定でAzureの声にしてください。";
+  }
+
   let from = repIdx;
   while (repeating && run === repRun){
     const one = $("repScope").value === "one" && !modelUrl;
@@ -454,9 +542,11 @@ async function startRepeat(){
     await wait(Number($("repGap").value) || 1500);
   }
 }
-function restartRepeat(){ stopModel(); startRepeat(); }
+function restartRepeat(){ stopModel(); try { repAudio.pause(); } catch(e){} startRepeat(); }
 function stopRepeat(){
   repRun++; repeating = false; stopModel(); mark(-1);
+  try { repAudio.pause(); } catch(e){}
+  if ("mediaSession" in navigator) try { navigator.mediaSession.playbackState = "none"; } catch(e){}
   $("recBtn").classList.remove("on"); $("recLabel").textContent = "リピート開始";
   $("ownBtn").disabled = false;
   $("status").textContent = repLoops ? `${repLoops}回 再生` : "待機中";
@@ -508,12 +598,12 @@ async function decode16k(blob){
   const out = await off.startRendering();
   return out.getChannelData(0);
 }
-function wav(samples){
+function wav(samples, sr = 16000){
   const b = new ArrayBuffer(44 + samples.length * 2), v = new DataView(b);
   const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
   w(0,"RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8,"WAVE"); w(12,"fmt ");
-  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,16000,true);
-  v.setUint32(28,32000,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40, samples.length * 2, true);
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sr,true);
+  v.setUint32(28,sr * 2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40, samples.length * 2, true);
   for (let i = 0; i < samples.length; i++){ const x = Math.max(-1, Math.min(1, samples[i])); v.setInt16(44 + i*2, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
   return new Blob([b], {type: "audio/wav"});
 }
