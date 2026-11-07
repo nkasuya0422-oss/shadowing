@@ -114,6 +114,7 @@ function setScript(s){
 }
 function render(){
   $("curTitle").textContent = current.title;
+  if (typeof renderIssues === "function") try { renderIssues(); } catch(e){}
   const box = $("script"); box.innerHTML = "";
   current.sentences.forEach((s, i) => {
     const d = document.createElement("div");
@@ -491,15 +492,17 @@ async function submit(take){
       const j = Coach.judgeSentence(g.text, res, take.rate);
       out.push({en: g.text, ja: g.ja, a: g.a, b: g.b, scores: res.scores, heard: res.display,
         tok: j.map.map(w => w ? {acc: w.acc, err: w.err} : {acc: null, err: "Omission"}),
-        findings: j.findings.map(f => ({type: f.type, i: f.i, j: f.j, status: f.status, label: f.label, msg: f.msg, tip: f.tip}))});
+        findings: j.findings.map(f => ({type: f.type, i: f.i, j: f.j, status: f.status, label: f.label, msg: f.msg, tip: f.tip,
+          metric: typeof f.metric === "number" ? +f.metric.toFixed(2) : null, target: f.target, unit: f.unit, better: f.better}))});
     }
     prog(1, "まとめ中…");
     const report = {id: take.id + "-" + Date.now(), date: new Date().toLocaleString("ja-JP", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"}),
       title: take.script.title, rate: take.rate, sentences: out, total: totalScores(out)};
+    report.progress = trackProgress(report, take.script);
     takeAudio.set(report.id, take.url);
     const hist = store.get("reports", []); hist.unshift(report);
     while (hist.length && !store.set("reports", hist.slice(0, 30))) hist.pop();
-    renderReport(report); renderHist();
+    renderReport(report); renderHist(); renderIssues();
   } catch(e){
     const m = String(e && e.message || e);
     $("reportCard").hidden = false;
@@ -525,6 +528,102 @@ function totalScores(sents){
   return t;
 }
 
+
+/* ---------- progress tracking: the same script remembers its open issues until they are fixed ---------- */
+const scriptKey = sc => { let h = 0; const t = sc.sentences.map(x => x.en).join("\n"); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return "s" + (h >>> 0).toString(36); };
+const LINKISH = new Set(["link","flap","hdrop","double","tyou","dyou"]);
+const STEPS = {
+  link: ["2語をくっつけて1語のつもりで言う（check it → チェキッ）。その文だけお手本を3回聞いてからシャドーイング",
+         "スピードを0.8×に下げ、その2語だけ5回 → 文全体を3回。途中で止まらないことを最優先に"],
+  weak: ["名詞・動詞だけを強く読み、それ以外は小さく早口に。まず強い語だけで言ってから戻す",
+         "この語を小さな「ア」に置き換えるつもりで、0.8×で5回"],
+  reduce: ["ふりがなのカタカナをそのまままねして言う", "その部分だけ5回 → 文全体を3回"],
+  pron: ["単語だけをお手本のあとに3回 → 文の中で", "鏡で口の形を見ながら、単語 → 文の順で5回ずつ"],
+  omit: ["英文を表示したまま（ブラインドをオフ）で、遅れないようについていく", "スピードを0.8×に下げて、まずついていくことを優先"],
+  insert: ["言い直さずに最後まで止めずに言い切る", "0.8×で、間違えても止まらずに続ける練習"],
+  tone: ["大事な語（名詞・動詞）を高く長く、それ以外を低く短く", "お手本の高低を手で上下に描きながらまねする"]
+};
+function advice(issue){
+  const steps = STEPS[LINKISH.has(issue.type) ? "link" : issue.type] || [];
+  if (issue.streak <= 1 || !steps.length) return issue.tip || "";
+  return steps[Math.min(issue.streak - 2, steps.length - 1)];
+}
+const fmtMetric = (v, unit) => v == null ? "–" : unit === "点" ? `${Math.round(v)}点` : `${v.toFixed(2)}秒`;
+
+function trackProgress(report, script){
+  const all = store.get("tracker", {}), key = scriptKey(script);
+  const t = all[key] || {title: script.title, attempts: 0, issues: {}};
+  t.title = script.title; t.attempts++; t.updated = report.date;
+  const cur = {};
+  report.sentences.forEach((s, k) => s.findings.forEach(f => { cur[`${k}|${f.type}|${f.type === "insert" ? "" : f.label}`] = Object.assign({k}, f); }));
+  const out = {attempt: t.attempts, fixed: [], still: [], fresh: []};
+  Object.entries(t.issues).forEach(([id, is]) => {
+    if (is.resolved) return;
+    const c = cur[id];
+    let st = "ok", metric = null;
+    if (c){ st = c.status; metric = c.metric; }
+    else if (is.type === "pron" || is.type === "omit"){
+      const tk = report.sentences[is.k] && report.sentences[is.k].tok[is.i];
+      const good = tk && tk.err !== "Omission" && typeof tk.acc === "number" && tk.acc >= 70;
+      st = good ? "ok" : "ng"; metric = tk && typeof tk.acc === "number" ? tk.acc : null;
+    }
+    const prev = is.last;
+    is.last = metric;
+    if (st === "ng" || st === "warn"){
+      is.streak++; is.okRun = 0;
+      out.still.push({label: is.label, k: is.k, count: is.streak, prev, now: metric, unit: is.unit, target: is.target, advice: advice(is)});
+    } else {
+      is.okRun = (is.okRun || 0) + 1;
+      if (is.okRun >= 2) is.resolved = true;
+      out.fixed.push({label: is.label, k: is.k, prev, now: metric, unit: is.unit, mastered: is.resolved});
+    }
+  });
+  Object.entries(cur).forEach(([id, f]) => {
+    if (f.status !== "ng" && f.status !== "warn") return;
+    const is = t.issues[id];
+    if (is && !is.resolved) return;
+    t.issues[id] = {type: f.type, label: f.label, k: f.k, i: f.i, tip: f.tip, unit: f.unit, target: f.target, streak: 1, okRun: 0, last: f.metric, first: report.date, resolved: false};
+    out.fresh.push({label: f.label, k: f.k, again: !!is});
+  });
+  all[key] = t;
+  const keys = Object.keys(all);                       // keep storage small: newest 40 scripts
+  if (keys.length > 40) keys.sort((a, b) => String(all[a].updated).localeCompare(String(all[b].updated))).slice(0, keys.length - 40).forEach(k => delete all[k]);
+  store.set("tracker", all);
+  return out;
+}
+
+/* practice screen: what to work on for the selected script */
+function renderIssues(){
+  let card = $("issuesCard");
+  if (!card){ card = document.createElement("div"); card.id = "issuesCard"; card.className = "card"; $("p-practice").insertBefore(card, $("p-practice").children[1]); }
+  const t = store.get("tracker", {})[scriptKey(current)];
+  const open = t ? Object.values(t.issues).filter(i => !i.resolved) : [];
+  if (!open.length){ card.hidden = true; return; }
+  card.hidden = false;
+  open.sort((a, b) => b.streak - a.streak || a.k - b.k);
+  card.innerHTML = `<h2>この英文の課題（${open.length}）</h2><div class="sub">前回までの添削で残っているものです。ここを意識して録音しましょう。</div><ul class="finds"></ul>`;
+  const ul = card.querySelector("ul");
+  open.slice(0, 8).forEach(is => {
+    const li = document.createElement("li"); li.className = is.streak >= 2 ? "ng" : "warn"; li.style.display = "grid";
+    li.innerHTML = `<span class="ic">${is.streak >= 2 ? "✗" : "△"}</span><span><span class="lb"></span> <span class="ms"></span><div class="tp"></div></span>`;
+    li.querySelector(".lb").textContent = `${is.k + 1}文目 ${is.label}`;
+    li.querySelector(".ms").textContent = (is.streak >= 2 ? `${is.streak}回連続` : "前回") + (is.last != null ? `・前回 ${fmtMetric(is.last, is.unit)}` : "") + (is.target != null ? `（目標 ${fmtMetric(is.target, is.unit)}${is.unit === "点" ? "以上" : "以下"}）` : "");
+    li.querySelector(".tp").textContent = advice(is);
+    ul.appendChild(li);
+  });
+}
+
+function progressHTML(p){
+  if (!p || p.attempt < 2) return "";
+  const line = (ic, cls, label, msg, tip) => `<li class="${cls}" style="display:grid"><span class="ic">${ic}</span><span><span class="lb">${esc(label)}</span> <span class="ms">${esc(msg)}</span>${tip ? `<div class="tp">${esc(tip)}</div>` : ""}</span></li>`;
+  let h = `<div class="rsent"><h2>前回からの変化（${p.attempt}回目）</h2><ul class="finds">`;
+  p.fixed.forEach(f => { h += line(f.mastered ? "◎" : "✓", "ok", `${f.k + 1}文目 ${f.label}`, (f.mastered ? "克服！2回続けてできました" : "改善しました") + (f.prev != null && f.now != null ? `（${fmtMetric(f.prev, f.unit)} → ${fmtMetric(f.now, f.unit)}）` : ""), f.mastered ? "" : "次も同じようにできたら克服です"); });
+  p.still.forEach(f => { h += line("✗", "ng", `${f.k + 1}文目 ${f.label}`, `まだ（${f.count}回連続）` + (f.prev != null && f.now != null ? `${fmtMetric(f.prev, f.unit)} → ${fmtMetric(f.now, f.unit)}` : "") + (f.target != null ? `・目標 ${fmtMetric(f.target, f.unit)}${f.unit === "点" ? "以上" : "以下"}` : ""), "次はこう練習：" + f.advice); });
+  if (p.fresh.length) h += line("△", "warn", "新しい課題", `${p.fresh.length}件（下の各文に表示）`, "");
+  if (!p.fixed.length && !p.still.length && !p.fresh.length) h += line("✓", "ok", "課題なし", "前回の課題はすべて解決済みです", "");
+  return h + "</ul></div>";
+}
+
 /* ---------- report ---------- */
 const ICON = {ng:"✗", warn:"△", ok:"✓", info:"i"};
 function renderReport(r){
@@ -534,7 +633,7 @@ function renderReport(r){
   card.insertAdjacentHTML("beforeend", `<div class="hd row" style="justify-content:space-between"><h2>${esc(r.title)}</h2><span class="sub">${esc(r.date)}・${r.rate.toFixed(2)}×</span></div>
     <div class="tiles">${tile(t.pron,"総合",true)}${tile(t.acc,"正確さ")}${tile(t.flu,"流暢さ")}${tile(t.pros,"抑揚")}${tile(t.comp,"完全さ")}</div>
     <div class="sub">直したいところ ${ng}か所。赤い ‿ はつながっていない所、色の付いた語は発音が崩れた語です。</div>
-    <label class="toggle"><input type="checkbox" id="showAll"> できている所も表示</label>`);
+    <label class="toggle"><input type="checkbox" id="showAll"> できている所も表示</label>${progressHTML(r.progress)}`);
   const audioUrl = takeAudio.get(r.id);
   let player = null;
   if (audioUrl){ player = new Audio(audioUrl); }
@@ -595,7 +694,9 @@ function claudePrompt(r){
   }).join("\n");
   return `英語のシャドーイングの発音評価結果です（Azureの発音評価による実測）。日本人学習者向けに、カタカナや口の動きなど感覚的にわかる言葉で、優先度の高い順に3〜5つ、具体的な直し方と練習法を教えてください。リンキング・弱形・脱落など音の変化に特に注目してください。
 
-総合 ${r.total.pron} / 正確さ ${r.total.acc} / 流暢さ ${r.total.flu} / 抑揚 ${r.total.pros} / 完全さ ${r.total.comp}（スピード ${r.rate}×）
+${r.progress && r.progress.attempt > 1 ? `同じ英文の${r.progress.attempt}回目の提出です。何度やっても直らない課題: ${r.progress.still.map(x => `${x.k + 1}文目「${x.label}」(${x.count}回連続)`).join("、") || "なし"}。直らない課題は特に、これまでと違う角度の練習法を提案してください。
+
+` : ""}総合 ${r.total.pron} / 正確さ ${r.total.acc} / 流暢さ ${r.total.flu} / 抑揚 ${r.total.pros} / 完全さ ${r.total.comp}（スピード ${r.rate}×）
 
 ${lines}`;
 }

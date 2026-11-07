@@ -191,6 +191,7 @@ function judgeSentence(sentence, az, rate) {
     const f = {type: m.type, label: m.label, reading: m.reading, tip: m.tip, i: m.i, j: m.j};
     for (let k = m.i; k <= m.j; k++) covered.add(k);
     if (m.type === "weak") {
+      f.metric = wa && wa.err !== "Omission" ? wa.dur : null; f.target = +(0.30 * slow).toFixed(2); f.unit = "秒"; f.better = "lower";
       if (!wa || wa.err === "Omission") { f.status = "warn"; f.msg = "聞き取れませんでした。弱くしすぎて消えたか、言えていません"; }
       else if (wa.dur > 0.30 * slow) { f.status = "ng"; f.msg = `強く・長く言いすぎ（${wa.dur.toFixed(2)}秒）。もっと短く、軽く`; }
       else { f.status = "ok"; f.msg = `ちょうどいい短さ（${wa.dur.toFixed(2)}秒）`; }
@@ -201,6 +202,9 @@ function judgeSentence(sentence, az, rate) {
     } else {
       const g = gap(m.i, m.j), brk = wb.breakErr.includes("UnexpectedBreak");
       const span = wb.off + wb.dur - wa.off, words = m.j - m.i + 1;
+      if (m.type === "reduce"){ f.metric = span; f.target = +((0.28 * words + 0.05) * slow).toFixed(2); }
+      else { f.metric = Math.max(g, 0); f.target = 0.12; }
+      f.unit = "秒"; f.better = "lower";
       if (brk || g > 0.12) { f.status = "ng"; f.msg = `語の間で途切れています（${Math.max(g, 0).toFixed(2)}秒の間）。止めずにつなげる`; }
       else if (m.type === "reduce" && span > (0.28 * words + 0.05) * slow) { f.status = "ng"; f.msg = `まだ1語ずつはっきり言っています（${span.toFixed(2)}秒）。まとめて短く`; }
       else { f.status = "ok"; f.msg = "自然につながっています"; }
@@ -217,7 +221,7 @@ function judgeSentence(sentence, az, rate) {
     if (w.err === "Mispronunciation" || w.acc < 70) {
       const worst = (w.phon || []).filter(p => typeof p.acc === "number").sort((a, b) => a.acc - b.acc)[0];
       const tip = worst ? phTip(worst.p) : null;
-      findings.push({type:"pron", i, j:i, label: t.n, status: w.acc < 50 ? "ng" : "warn",
+      findings.push({type:"pron", i, j:i, label: t.n, status: w.acc < 50 ? "ng" : "warn", metric: w.acc, target: 70, unit: "点", better: "higher",
         msg: `発音 ${Math.round(w.acc)}点` + (tip ? `：特に「${tip.name}」の音（${Math.round(worst.acc)}点）` : ""),
         tip: tip ? tip.tip : "お手本をよく聞いてまねしましょう"});
     }
