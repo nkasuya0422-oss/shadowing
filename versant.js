@@ -65,6 +65,26 @@ const VS = (() => {
     };
   }
 
+  /* Part F: content words from the prompt that also appear in the answer (Pearson scores content by
+     prompt-related words, so reusing the question's own words is a cheap, safe signal) */
+  const STOP = new Set(("a an the and or but if so to of in on at for from by with about as is are was were be been being do does did " +
+    "you your yours i me my we our they their them he she it its this that these those there here what which who whom why how when where " +
+    "would could should will can may might must shall some others other people person prefer think better best rather than more most " +
+    "while not no yes or either whether it's isn't don't doesn't why or why not one ones every each day a day year " +
+    "have has had own take use out held several everyone everyday twenty four get make also just very really well much many like").split(/\s+/));
+  const stem = w => w.replace(/'s$/, "").replace(/(ing|ers|er|ed|es|s)$/, "").slice(0, 6);
+  function topicWords(prompt){
+    const seen = new Set(), out = [];
+    tok(prompt).forEach(w => { if (w.length < 3 || STOP.has(w) || /^\d+$/.test(w)) return; const k = stem(w); if (!seen.has(k)){ seen.add(k); out.push(w); } });
+    return out;
+  }
+  function topicCoverage(said, prompt){
+    const words = topicWords(prompt), saidStems = new Set(tok(said).map(stem));
+    const rows = words.map(w => ({w, ok: saidStems.has(stem(w))}));
+    const hit = rows.filter(r => r.ok).length;
+    return {rows, hit, total: rows.length, pct: rows.length ? Math.round(hit / rows.length * 100) : 0};
+  }
+
   function speechStats(said, onset, lastVoice, pauses, elapsed){
     const all = tok(said);
     const fillers = all.filter(w => FILLERS.has(w)).length;
@@ -73,7 +93,7 @@ const VS = (() => {
     return {words, fillers, wpm: span ? Math.round(words / (span / 60)) : null, latency: onset, pauses};
   }
 
-  return {tok, diffWords, checkAnswer, retellChecklist, opinionChecklist, speechStats, FILLERS};
+  return {tok, diffWords, checkAnswer, retellChecklist, opinionChecklist, topicWords, topicCoverage, speechStats, FILLERS};
 })();
 if (typeof module !== "undefined" && module.exports){ module.exports = VS; }
 
@@ -109,7 +129,7 @@ if (typeof window !== "undefined") (function(){
     if (!h.length) return "まだ記録なし";
     const avg = k => { const v = h.map(x => x[k]).filter(x => typeof x === "number"); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
     const s = avg("score"), lat = avg("lat");
-    const label = p === "B" ? "一致率" : p === "E" ? "要素" : p === "F" ? "型" : "正解";
+    const label = p === "B" ? "一致率" : p === "E" ? "要素" : p === "F" ? "型＋お題" : "正解";
     return `直近${h.length}回：${label} ${s == null ? "–" : Math.round(s) + "%"}` + (lat != null ? `・話し始め ${lat.toFixed(1)}秒` : "");
   }
   async function renderHome(){
@@ -374,8 +394,13 @@ if (typeof window !== "undefined") (function(){
         const c = VS.retellChecklist(said, it.keys); const n = Object.values(c).filter(Boolean).length; score = n * 25;
         judge = `<div class="score"><span class="big">${n}/4</span><span class="sub">話の要素（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [E_LABEL[k], v]));
       } else if (p === "F"){
-        const c = VS.opinionChecklist(said); const n = Object.values(c).filter(Boolean).length; score = n * 20;
-        judge = `<div class="score"><span class="big">${n}/5</span><span class="sub">型を使えたか（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [F_LABEL[k], v]));
+        const c = VS.opinionChecklist(said); const n = Object.values(c).filter(Boolean).length;
+        const tc = VS.topicCoverage(said, it.q);
+        score = Math.round(n / 5 * 50 + tc.pct / 2);          // template 50% + prompt words 50%
+        judge = `<div class="score"><span class="big">${score}%</span><span class="sub">型 ${n}/5 ＋ お題の言葉 ${tc.hit}/${tc.total}（自動判定・目安）</span></div>
+          <div class="field"><label>お題の言葉を使えたか</label><p class="vdiff">${tc.rows.map(r => `<span class="w ${r.ok ? "ok" : "ng"}">${esc(r.w)}</span>`).join(" ")}</p>
+          <div class="sub">本番は「お題に関係する語」が出てくるかで内容が評価されます。質問に出てきた語を回答の中でも使いましょう。</div></div>`
+          + checklist(Object.entries(c).map(([k, v]) => [F_LABEL[k], v]));
       }
     }
     return {score, judge, stats};
@@ -582,7 +607,7 @@ if (typeof window !== "undefined") (function(){
   function summaryTable(sm){
     const row = p => {
       const x = sm.parts[p]; if (!x) return "";
-      const main = p === "B" ? `平均一致率 ${x.pct}%` : (p === "E" ? `要素 ${x.pct}%` : p === "F" ? `型 ${x.pct}%` : `${x.correct}/${x.n} 正解`);
+      const main = p === "B" ? `平均一致率 ${x.pct}%` : (p === "E" ? `要素 ${x.pct}%` : p === "F" ? `型＋お題 ${x.pct}%` : `${x.correct}/${x.n} 正解`);
       const weak = x.pct != null && x.pct < 60;
       return `<tr class="${weak ? "weak" : ""}"><td><b>${p}</b> ${esc(bank.parts[p].name)}</td><td>${main}</td><td>${x.lat == null ? "–" : x.lat + "秒"}</td><td>${x.noAnswer ? x.noAnswer + "問" : "0"}</td>${x.wpm != null && (p === "E" || p === "F") ? `<td>${x.wpm}</td>` : "<td>–</td>"}</tr>`;
     };
