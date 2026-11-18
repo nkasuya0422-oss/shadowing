@@ -56,7 +56,10 @@ const az = () => { const c = store.get("azure", null); return c && c.key && c.re
 document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.p)));
 function showTab(p){
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.p === p)));
-  ["src","practice","report","settings"].forEach(k => $("p-"+k).hidden = k !== p);
+  ["src","practice","report","versant","settings"].forEach(k => $("p-"+k).hidden = k !== p);
+  document.querySelector(".dock").hidden = p === "versant";
+  if (window.Versant){ if (p === "versant") window.Versant.show(); else if (showTab.last === "versant") window.Versant.cancel(); }
+  showTab.last = p;
   window.scrollTo(0, 0);
 }
 
