@@ -116,8 +116,14 @@ if (typeof window !== "undefined") (function(){
     $("vQ").hidden = true; const home = $("vHome"); home.hidden = false;
     home.innerHTML = `<div class="card"><h2>Versant 対策</h2><div class="sub">パートを選んで練習します。問題の音声が流れたあと、すぐに回答の録音が始まります。練習なので、聞き直しもできます。</div>
       <div class="note">イヤホンを使ってください。採点（文字起こし）には設定タブのAzureキーが必要です。本番はPCなので、Macのブラウザでも同じように練習できます。</div></div>
+      <div class="card vmock"><h2>本番模擬テスト</h2>
+        <div class="sub">全40問（A8・B16・C6・D6・E2・F2）を本番どおり通しで出題します。約17分。戻る・聞き直しはできず、6秒話さないと次の問題へ進みます。結果は最後にまとめて表示します。</div>
+        <button class="btn" id="vMockBtn">模擬テストを始める</button>
+        <div id="vMockHist"></div></div>
       <div class="vparts" id="vParts">読み込み中…</div>`;
     try { await loadBank(); } catch(e){ $("vParts").textContent = "問題データを読み込めませんでした。通信を確認して開き直してください。"; return; }
+    $("vMockBtn").addEventListener("click", mockIntro);
+    renderMockHist();
     const box = $("vParts"); box.innerHTML = "";
     ORDER.forEach(p => {
       const P = bank.parts[p];
@@ -205,8 +211,8 @@ if (typeof window !== "undefined") (function(){
       synth.speak(u);
     });
   }
-  async function playPrompt(token){
-    for (const s of segments(part, item)){
+  async function playPrompt(token, p = part, it = item){
+    for (const s of segments(p, it)){
       if (token !== run) return;
       if (s.pre) await wait(s.pre);
       if (az()) await playUrl(await azClip(s.t, VOICE[s.v], 1), 0);
@@ -215,9 +221,9 @@ if (typeof window !== "undefined") (function(){
       if (s.gap) await wait(s.gap);
     }
   }
-  async function prefetch(){
+  async function prefetch(p = part, it = item){
     if (!az()) return;
-    await Promise.all(segments(part, item).map(s => azClip(s.t, VOICE[s.v], 1)));
+    await Promise.all(segments(p, it).map(s => azClip(s.t, VOICE[s.v], 1)));
   }
 
   /* ---------- one attempt: prompt → answer window → analysis ---------- */
@@ -288,7 +294,7 @@ if (typeof window !== "undefined") (function(){
     };
   }
 
-  function recordAnswer(stream, meter, limit, token){
+  function recordAnswer(stream, meter, limit, token, opts = {}){
     const mime = pickMime();
     const chunks = []; let mr = null;
     try { mr = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream); } catch(e){}
@@ -316,9 +322,11 @@ if (typeof window !== "undefined") (function(){
       const t = (performance.now() - t0) / 1000;
       setFill(Math.min(1, t / limit));
       $("vTime").textContent = `残り ${Math.max(0, Math.ceil(limit - t))}秒` + (onset != null ? `・話し始め ${onset.toFixed(1)}秒` : "");
+      if (onset == null && t >= 6 && opts.mock){ finish("noanswer"); return; }
       if (onset == null && t >= 6 && !warned){ warned = true; status("⚠ 6秒以内に話し始められませんでした（本番なら次の問題へ進みます）"); }
       if (t >= limit) finish("time");
       else if (SHORT.has(part) && onset != null && silenceStart != null && t - silenceStart >= 2.5) finish("silence");
+      else if (opts.mock && onset != null && silenceStart != null && t - silenceStart >= 4) finish("silence");
     }, 100);
     async function finish(why){
       if (finished) return; finished = true;
@@ -348,6 +356,30 @@ if (typeof window !== "undefined") (function(){
     return {display: nb ? nb.Display : (j.DisplayText || ""), lexical: nb ? (nb.Lexical || nb.Display) : ""};
   }
 
+  function evaluate(p, it, r, tr){
+    const said = tr ? `${tr.lexical} ${tr.display}` : "";
+    const lex = tr ? tr.lexical : "";
+    const stats = VS.speechStats(lex, r.onset, r.lastVoice, r.pauses, r.elapsed);
+    let score = null, judge = "";
+    if (tr){
+      if (p === "B"){
+        const d = VS.diffWords(it.text, lex); score = d.pct;
+        judge = `<div class="score"><span class="big">${d.pct}%</span><span class="sub">${d.total}語中 ${d.hit}語 一致</span></div>
+          <p class="vdiff">${d.words.map(w => `<span class="w ${w.ok ? "ok" : "ng"}">${esc(w.w)}</span>`).join(" ")}</p>
+          ${d.extra.length ? `<div class="sub">違う語・余計な語：${esc(d.extra.join(", "))}</div>` : ""}`;
+      } else if (p === "A" || p === "C" || p === "D"){
+        const ok = VS.checkAnswer(said, it.accept); score = ok ? 100 : 0;
+        judge = `<div class="score"><span class="big" style="color:var(${ok ? "--hit" : "--miss"})">${ok ? "○" : "×"}</span><span class="sub">${ok ? "正解の語が含まれています" : "正解の語が聞き取れませんでした"}（自動判定・目安）</span></div>`;
+      } else if (p === "E"){
+        const c = VS.retellChecklist(said, it.keys); const n = Object.values(c).filter(Boolean).length; score = n * 25;
+        judge = `<div class="score"><span class="big">${n}/4</span><span class="sub">話の要素（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [E_LABEL[k], v]));
+      } else if (p === "F"){
+        const c = VS.opinionChecklist(said); const n = Object.values(c).filter(Boolean).length; score = n * 20;
+        judge = `<div class="score"><span class="big">${n}/5</span><span class="sub">型を使えたか（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [F_LABEL[k], v]));
+      }
+    }
+    return {score, judge, stats};
+  }
   async function analyze(r, token){
     status("採点中…"); setFill(1);
     let tr = null, err = "";
@@ -356,42 +388,23 @@ if (typeof window !== "undefined") (function(){
       try { tr = await transcribe(r.blob); } catch(e){ err = "文字起こしできませんでした（" + e.message + "）。"; }
     }
     if (token !== run) return;
-    const said = tr ? `${tr.lexical} ${tr.display}` : "";
-    const lex = tr ? tr.lexical : "";
-    const stats = VS.speechStats(tr ? tr.lexical : "", r.onset, r.lastVoice, r.pauses, r.elapsed);
-    let score = null, judge = "";
-    if (tr){
-      if (part === "B"){
-        const d = VS.diffWords(item.text, lex); score = d.pct;
-        judge = `<div class="score"><span class="big">${d.pct}%</span><span class="sub">${d.total}語中 ${d.hit}語 一致</span></div>
-          <p class="vdiff">${d.words.map(w => `<span class="w ${w.ok ? "ok" : "ng"}">${esc(w.w)}</span>`).join(" ")}</p>
-          ${d.extra.length ? `<div class="sub">違う語・余計な語：${esc(d.extra.join(", "))}</div>` : ""}`;
-      } else if (part === "A" || part === "C" || part === "D"){
-        const ok = VS.checkAnswer(said, item.accept); score = ok ? 100 : 0;
-        judge = `<div class="score"><span class="big" style="color:var(${ok ? "--hit" : "--miss"})">${ok ? "○" : "×"}</span><span class="sub">${ok ? "正解の語が含まれています" : "正解の語が聞き取れませんでした"}（自動判定・目安）</span></div>`;
-      } else if (part === "E"){
-        const c = VS.retellChecklist(said, item.keys); const n = Object.values(c).filter(Boolean).length; score = n * 25;
-        judge = `<div class="score"><span class="big">${n}/4</span><span class="sub">話の要素（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [E_LABEL[k], v]));
-      } else if (part === "F"){
-        const c = VS.opinionChecklist(said); const n = Object.values(c).filter(Boolean).length; score = n * 20;
-        judge = `<div class="score"><span class="big">${n}/5</span><span class="sub">型を使えたか（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [F_LABEL[k], v]));
-      }
-    }
-    const h = hist(); h.unshift({d: today(), part, id: item.id, score, lat: r.onset, wpm: stats.wpm});
+    const ev = evaluate(part, item, r, tr);
+    const h = hist(); h.unshift({d: today(), part, id: item.id, score: ev.score, lat: r.onset, wpm: ev.stats.wpm});
     store.set("v-hist", h.slice(0, 800));
-    renderResult(r, tr, stats, judge, err);
+    renderResult(r, tr, ev.stats, ev.judge, err);
   }
   function checklist(rows){
     return `<ul class="finds">${rows.map(([l, v]) => `<li class="${v ? "ok" : "ng"}" style="display:grid"><span class="ic">${v ? "✓" : "✗"}</span><span>${esc(l)}</span></li>`).join("")}</ul>`;
   }
-  function scriptHTML(){
-    switch (part){
-      case "A": return `<p>${esc(item.q)}</p>`;
-      case "B": return `<p>${esc(item.text)}</p>`;
-      case "C": return item.lines.map(l => `<p><b>${l.s === "M" ? "男性" : "女性"}：</b>${esc(l.t)}</p>`).join("") + `<p><b>質問：</b>${esc(item.q)}</p>`;
-      case "D": return `<p>${esc(item.passage)}</p><p><b>質問：</b>${esc(item.q)}</p>`;
-      case "E": return `<p>${esc(item.passage)}</p>`;
-      case "F": return `<p>${esc(item.q)}</p>`;
+  function scriptHTML(p = part, it = item){
+    const item_ = it;
+    switch (p){
+      case "A": return `<p>${esc(item_.q)}</p>`;
+      case "B": return `<p>${esc(item_.text)}</p>`;
+      case "C": return item_.lines.map(l => `<p><b>${l.s === "M" ? "男性" : "女性"}：</b>${esc(l.t)}</p>`).join("") + `<p><b>質問：</b>${esc(item_.q)}</p>`;
+      case "D": return `<p>${esc(item_.passage)}</p><p><b>質問：</b>${esc(item_.q)}</p>`;
+      case "E": return `<p>${esc(item_.passage)}</p>`;
+      case "F": return `<p>${esc(item_.q)}</p>`;
     }
   }
   function renderResult(r, tr, st, judge, err){
@@ -421,6 +434,203 @@ if (typeof window !== "undefined") (function(){
     $("vNext").addEventListener("click", () => { showQuestion(nextItem(part)); begin(); });   // flows straight into the next prompt, like the real test
     $("vStart").hidden = true; $("vReplay").hidden = true;
     box.scrollIntoView({behavior: "smooth", block: "start"});
+  }
+
+
+  /* ================= 本番模擬モード ================= */
+  const PLAN = [["A",8],["B",16],["C",6],["D",6],["E",2],["F",2]];
+  const INSTR = {
+    A: "Part A. Short answer questions. Please answer each question with a single word or a short phrase.",
+    B: "Part B. Repeats. Please repeat each sentence that you hear, exactly as you hear it.",
+    C: "Part C. Conversations. You will hear a conversation between two people, followed by a question. Please answer the question with a word or a short phrase.",
+    D: "Part D. Passage comprehension. You will hear a short passage, followed by a question. Please answer the question.",
+    E: "Part E. Story retelling. You will hear a short story. Please retell the story in your own words.",
+    F: "Part F. Open questions. You will hear a question. Please give your opinion and explain your reasons."
+  };
+  let mock = null;
+  const shuffle = a => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+
+  function renderMockHist(){
+    const h = store.get("v-mock", []), box = $("vMockHist"); if (!box) return;
+    if (!h.length){ box.innerHTML = ""; return; }
+    box.innerHTML = `<div class="sub" style="margin-top:6px">これまでの模擬テスト</div><ul class="hist">` + h.slice(0, 5).map((m, k) =>
+      `<li><button data-k="${k}">${esc(m.date)}</button><span class="s">${["A","B","C","D","E","F"].map(p => `${p} ${m.parts[p] && m.parts[p].pct != null ? m.parts[p].pct + "%" : "–"}`).join(" ")}</span></li>`).join("") + "</ul>";
+    box.querySelectorAll("button[data-k]").forEach(b => b.addEventListener("click", () => showMockSummaryOnly(h[Number(b.dataset.k)])));
+  }
+
+  function mockIntro(){
+    $("vHome").hidden = true; const q = $("vQ"); q.hidden = false;
+    q.innerHTML = `<div class="card"><button class="btn ghost small" id="vBack" style="align-self:flex-start">← 戻る</button>
+      <h2>本番模擬テスト（全40問・約17分）</h2>
+      <ul class="finds">
+        <li class="warn" style="display:grid"><span class="ic">1</span><span>イヤホンをつけ、静かな場所で受けてください。途中で止めると最初からになります。</span></li>
+        <li class="warn" style="display:grid"><span class="ic">2</span><span>問題の音声は1回だけ。戻る・聞き直しはできません。</span></li>
+        <li class="warn" style="display:grid"><span class="ic">3</span><span>音声が終わったらすぐ回答。6秒話さないと次の問題へ進みます。時間切れでも、途中まで話した分は採点されます。</span></li>
+        <li class="warn" style="display:grid"><span class="ic">4</span><span>結果は最後にまとめて表示します（採点はテスト中に裏で進めます）。</span></li>
+      </ul>
+      ${az() ? "" : `<div class="err">設定タブでAzureのキーを入れてから始めてください（読み上げと採点に使います）。</div>`}
+      <button class="btn" id="vMockGo"${az() ? "" : " disabled"}>テストを開始する</button></div>`;
+    $("vBack").addEventListener("click", renderHome);
+    $("vMockGo").addEventListener("click", startMock);
+  }
+
+  async function startMock(){
+    cancel();
+    const token = run;
+    setAudioSession("play-and-record"); unlockAudio();
+    const list = [];
+    (window.__vPlan || PLAN).forEach(([p, n]) => shuffle(bank.parts[p].items).slice(0, n).forEach(it => list.push({p, it})));
+    mock = {list, results: [], token, done: 0, queue: Promise.resolve()};
+    state = "mock";
+    $("vQ").innerHTML = `<div class="card vstage">
+        <div class="row" style="justify-content:space-between"><span class="chip" id="vMPart">準備中</span><span class="sub" id="vMNum"></span></div>
+        <div class="vstatus" id="vStatus">準備中…</div>
+        <div class="vbar"><i id="vFill"></i></div>
+        <div class="row" style="justify-content:space-between"><span class="sub" id="vTime"></span><span class="vlvl"><i id="vLvl"></i></span></div>
+        <div class="vbar thin"><i id="vTotal"></i></div>
+        <button class="btn ghost small" id="vQuit" style="align-self:flex-end">中断する</button>
+        <div class="err" id="vErr"></div></div>`;
+    let quitArmed = false;
+    $("vQuit").addEventListener("click", () => {
+      if (!quitArmed){ quitArmed = true; $("vQuit").textContent = "もう一度押すと中断（結果は残りません）"; setTimeout(() => { quitArmed = false; const b = $("vQuit"); if (b) b.textContent = "中断する"; }, 3000); return; }
+      cancel(); mock = null; renderHome();
+    });
+    let stream;
+    try { stream = await getMic(); }
+    catch(e){ $("vErr").textContent = "マイクを使えませんでした。ブラウザのマイク許可を確認してください。"; return; }
+    if (actx && actx.state !== "running"){ try { await actx.resume(); } catch(e){} }
+    let prevPart = null;
+    try {
+      await prefetch(list[0].p, list[0].it);
+      for (let k = 0; k < list.length; k++){
+        if (token !== run) return;
+        const q = list[k]; part = q.p; item = q.it;
+        $("vMPart").textContent = `Part ${part}・${bank.parts[part].name}`;
+        $("vMNum").textContent = `${k + 1} / ${list.length}`;
+        $("vTotal").style.width = Math.round(k / list.length * 100) + "%";
+        $("vTime").textContent = ""; setFill(0);
+        if (part !== prevPart){
+          prevPart = part;
+          status("📢 " + hint(part));
+          await playUrl(await azClip(INSTR[part], VOICE.N, 1), 0);
+          if (token !== run) return;
+          await wait(700);
+        }
+        const meter = makeMeter(stream);
+        status("🔊 問題を聞いてください");
+        const next = list[k + 1];
+        if (next) prefetch(next.p, next.it).catch(() => {});
+        await playPrompt(token);
+        if (token !== run){ meter.stop(); return; }
+        meter.freezeFloor();
+        rec = recordAnswer(stream, meter, bank.parts[part].time, token, {mock: true});
+        const r = await rec.done; rec = null;
+        if (!r || token !== run) return;
+        const entry = {p: part, it: item, r, tr: null, err: ""};
+        mock.results.push(entry);
+        mock.queue = mock.queue.then(async () => {
+          if (r.why === "noanswer" || !r.blob) entry.tr = {display: "", lexical: ""};
+          else { try { entry.tr = await transcribe(r.blob); } catch(e){ entry.err = e.message; } }
+          mock.done++;
+        });
+        if (r.why === "noanswer") status("⏭ 6秒話さなかったので次へ");
+        await wait(800);
+      }
+    } catch(e){
+      if (token !== run) return;
+      $("vErr").textContent = "途中で止まりました（" + (e.message || e) + "）。通信とAzureの設定を確認してください。";
+      releaseMic(); setAudioSession("auto"); return;
+    }
+    releaseMic(); setAudioSession("auto"); state = "idle";
+    $("vTotal").style.width = "100%";
+    status("採点中…");
+    const tick = setInterval(() => { $("vTime").textContent = `${mock.done} / ${mock.results.length} 問 採点済み`; setFill(mock.done / mock.results.length); }, 200);
+    await mock.queue; clearInterval(tick);
+    if (token !== run) return;
+    finishMock();
+  }
+
+  function finishMock(){
+    const res = mock.results.map(e => Object.assign(e, evaluate(e.p, e.it, e.r, e.tr)));
+    const h = hist();
+    res.forEach(e => h.unshift({d: today(), part: e.p, id: e.it.id, score: e.score, lat: e.r.onset, wpm: e.stats.wpm, mock: true}));
+    store.set("v-hist", h.slice(0, 800));
+    const summary = summarize(res);
+    const mh = store.get("v-mock", []); mh.unshift(summary); store.set("v-mock", mh.slice(0, 30));
+    renderMockResult(res, summary);
+  }
+
+  function summarize(res){
+    const parts = {};
+    ["A","B","C","D","E","F"].forEach(p => {
+      const r = res.filter(e => e.p === p); if (!r.length) return;
+      const sc = r.map(e => e.score).filter(x => typeof x === "number");
+      const lat = r.map(e => e.r.onset).filter(x => typeof x === "number");
+      const wpm = r.map(e => e.stats.wpm).filter(x => typeof x === "number");
+      parts[p] = {n: r.length, pct: sc.length ? Math.round(sc.reduce((a, b) => a + b, 0) / r.length) : null,
+        correct: (p === "A" || p === "C" || p === "D") ? r.filter(e => e.score === 100).length : null,
+        noAnswer: r.filter(e => e.r.why === "noanswer").length,
+        lat: lat.length ? +(lat.reduce((a, b) => a + b, 0) / lat.length).toFixed(1) : null,
+        wpm: wpm.length ? Math.round(wpm.reduce((a, b) => a + b, 0) / wpm.length) : null};
+    });
+    const lat = res.map(e => e.r.onset).filter(x => typeof x === "number");
+    return {date: new Date().toLocaleString("ja-JP", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"}), parts,
+      noAnswer: res.filter(e => e.r.why === "noanswer").length,
+      lat: lat.length ? +(lat.reduce((a, b) => a + b, 0) / lat.length).toFixed(1) : null};
+  }
+
+  function summaryTable(sm){
+    const row = p => {
+      const x = sm.parts[p]; if (!x) return "";
+      const main = p === "B" ? `平均一致率 ${x.pct}%` : (p === "E" ? `要素 ${x.pct}%` : p === "F" ? `型 ${x.pct}%` : `${x.correct}/${x.n} 正解`);
+      const weak = x.pct != null && x.pct < 60;
+      return `<tr class="${weak ? "weak" : ""}"><td><b>${p}</b> ${esc(bank.parts[p].name)}</td><td>${main}</td><td>${x.lat == null ? "–" : x.lat + "秒"}</td><td>${x.noAnswer ? x.noAnswer + "問" : "0"}</td>${x.wpm != null && (p === "E" || p === "F") ? `<td>${x.wpm}</td>` : "<td>–</td>"}</tr>`;
+    };
+    const ranked = Object.entries(sm.parts).filter(([, x]) => x.pct != null).sort((a, b) => a[1].pct - b[1].pct);
+    const weakest = ranked.length ? ranked[0][0] : null;
+    return `<div class="tiles vtiles">
+        <div class="tile main"><b>${sm.lat == null ? "–" : sm.lat + "秒"}</b><span>話し始め平均</span></div>
+        <div class="tile${sm.noAnswer ? " warn" : ""}"><b>${sm.noAnswer}問</b><span>無回答（6秒）</span></div>
+        <div class="tile"><b>${weakest || "–"}</b><span>いちばん弱いパート</span></div>
+      </div>
+      <div class="vtable"><table><thead><tr><th>パート</th><th>結果</th><th>話し始め</th><th>無回答</th><th>WPM</th></tr></thead>
+      <tbody>${["A","B","C","D","E","F"].map(row).join("")}</tbody></table></div>
+      <div class="sub">結果はこのアプリの自動判定による目安で、本番のスコアとは別物です。60%未満のパートは色付きで表示しています。</div>`;
+  }
+
+  function renderMockResult(res, sm){
+    $("vHome").hidden = true; const q = $("vQ"); q.hidden = false;
+    q.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><h2>模擬テストの結果</h2><span class="sub">${esc(sm.date)}</span></div>
+      ${summaryTable(sm)}
+      <div class="row"><button class="btn ghost" id="vHome2">パート一覧へ</button><button class="btn" id="vRetry">もう一度受ける</button></div></div>
+      <div class="card"><h2>問題ごとの結果</h2><div class="sub">タップすると、スクリプト・あなたの回答・録音・模範解答を確認できます。</div><div id="vItems"></div></div>`;
+    $("vHome2").addEventListener("click", renderHome);
+    $("vRetry").addEventListener("click", mockIntro);
+    const box = $("vItems");
+    res.forEach((e, k) => {
+      const d = document.createElement("details"); d.className = "vitem";
+      const tag = e.r.why === "noanswer" ? "無回答" : e.p === "B" ? `${e.score ?? "–"}%` : (e.p === "A" || e.p === "C" || e.p === "D") ? (e.score === 100 ? "○" : "×") : e.score != null ? `${e.score}%` : "–";
+      const bad = e.r.why === "noanswer" || (e.score != null && e.score < 60);
+      d.innerHTML = `<summary><span class="chip">${e.p}</span> <span class="vsumtxt"></span><span class="vtag${bad ? " bad" : ""}">${tag}</span></summary>
+        <div class="vdet">
+          ${e.judge || ""}
+          <div class="sub">話し始め ${e.r.onset == null ? "–" : e.r.onset.toFixed(1) + "秒"}・フィラー ${e.stats.fillers}回・1秒以上の間 ${e.stats.pauses}回${e.stats.wpm ? "・WPM " + e.stats.wpm : ""}</div>
+          ${e.r.blob ? `<audio controls playsinline preload="none" src="${URL.createObjectURL(e.r.blob)}"></audio>` : ""}
+          <div class="field"><label>あなたの回答</label><div class="vbox">${e.tr ? esc(e.tr.display || "（なし）") : esc("文字起こしできませんでした " + e.err)}</div></div>
+          <div class="field"><label>問題のスクリプト</label><div class="vbox">${scriptHTML(e.p, e.it)}</div></div>
+          ${e.it.model ? `<div class="field"><label>模範解答</label><div class="vbox">${esc(e.it.model)}</div></div>` : ""}
+        </div>`;
+      d.querySelector(".vsumtxt").textContent = `${k + 1}. ${(e.it.q || e.it.text || e.it.passage || "").slice(0, 48)}…`;
+      box.appendChild(d);
+    });
+    window.scrollTo(0, 0);
+  }
+
+  function showMockSummaryOnly(sm){
+    $("vHome").hidden = true; const q = $("vQ"); q.hidden = false;
+    q.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><h2>模擬テストの結果</h2><span class="sub">${esc(sm.date)}</span></div>
+      ${summaryTable(sm)}<button class="btn ghost" id="vHome2">パート一覧へ</button></div>`;
+    $("vHome2").addEventListener("click", renderHome);
   }
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
