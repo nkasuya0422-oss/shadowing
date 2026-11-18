@@ -418,7 +418,7 @@ if (typeof window !== "undefined") (function(){
       ${item.model ? `<div class="field"><label>模範解答</label><div class="vbox">${esc(item.model)}</div></div>` : ""}
       <div class="row"><button class="btn ghost" id="vAgain">もう一度この問題</button><button class="btn" id="vNext">次の問題 →</button></div>`;
     $("vAgain").addEventListener("click", () => { $("vResult").hidden = true; begin(); });
-    $("vNext").addEventListener("click", () => showQuestion(nextItem(part)));
+    $("vNext").addEventListener("click", () => { showQuestion(nextItem(part)); begin(); });   // flows straight into the next prompt, like the real test
     $("vStart").hidden = true; $("vReplay").hidden = true;
     box.scrollIntoView({behavior: "smooth", block: "start"});
   }
