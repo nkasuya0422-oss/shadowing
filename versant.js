@@ -109,7 +109,7 @@ if (typeof window !== "undefined") (function(){
     E: "This story is about [人物]. [問題]. Then [行動]. In the end, [結果].",
     F: "I think [立場] is better, for two reasons. First, … For example, … Second, … So overall, I prefer [立場]."
   };
-  let bank = null, part = null, item = null, run = 0, state = "idle", rec = null;
+  let bank = null, part = null, item = null, run = 0, state = "idle", rec = null, lastScore = null;
   const today = () => new Date().toLocaleDateString("sv-SE", {timeZone: "Asia/Tokyo"});
 
   const panel = document.getElementById("p-versant");
@@ -416,6 +416,7 @@ if (typeof window !== "undefined") (function(){
     const ev = evaluate(part, item, r, tr);
     const h = hist(); h.unshift({d: today(), part, id: item.id, score: ev.score, lat: r.onset, wpm: ev.stats.wpm});
     store.set("v-hist", h.slice(0, 800));
+    lastScore = ev.score;
     renderResult(r, tr, ev.stats, ev.judge, err);
   }
   function checklist(rows){
@@ -453,14 +454,90 @@ if (typeof window !== "undefined") (function(){
       ${r.blob ? `<div class="field"><label>自分の録音</label><audio controls playsinline src="${URL.createObjectURL(r.blob)}"></audio></div>` : ""}
       <div class="field"><label>あなたの回答（文字起こし）</label><div class="vbox">${tr ? esc(tr.display || "（聞き取れませんでした）") : "–"}</div></div>
       <div class="field"><label>問題のスクリプト</label><div class="vbox">${scriptHTML()}</div></div>
+      ${long && tr ? grammarBlock() : ""}
       ${item.model ? `<div class="field"><label>模範解答</label><div class="vbox">${esc(item.model)}</div></div>` : ""}
+      <div id="vAsk"></div>
       <div class="row"><button class="btn ghost" id="vAgain">もう一度この問題</button><button class="btn" id="vNext">次の問題 →</button></div>`;
+    const grammar = [], p0 = part, it0 = item;
+    if (long && tr) fillGrammar(box, tr.display, grammar);
+    $("vAsk").appendChild(claudeButton(() => claudePrompt(p0, it0, tr, st, lastScore, grammar)));
     $("vAgain").addEventListener("click", () => { $("vResult").hidden = true; begin(); });
     $("vNext").addEventListener("click", () => { showQuestion(nextItem(part)); begin(); });   // flows straight into the next prompt, like the real test
     $("vStart").hidden = true; $("vReplay").hidden = true;
     box.scrollIntoView({behavior: "smooth", block: "start"});
   }
 
+
+
+  /* ================= 文法チェック（LanguageTool）と「Claudeに聞く」 ================= */
+  /* One request per finished answer (user-initiated), well inside the public API's 20 req/min.
+     Only grammar-type rules are shown: spelling, casing and punctuation come from the speech
+     recognizer, not from the speaker, so they are dropped. */
+  const LT_KEEP = new Set(["GRAMMAR", "CONFUSED_WORDS", "COLLOCATIONS", "NONSTANDARD_PHRASES", "MISC"]);
+  const LT_DROP = /UPPERCASE|PUNCT|COMMA|WHITESPACE|QUOTE|SENTENCE_FRAGMENT|EN_UNPAIRED|DOUBLE_PUNCT|ENGLISH_WORD_REPEAT_BEGINNING/;
+  async function grammarCheck(text){
+    const body = new URLSearchParams({text, language: "en-US", motherTongue: "ja"});
+    const r = await fetch("https://api.languagetool.org/v2/check", {method: "POST", body});
+    if (!r.ok) throw new Error("lt " + r.status);
+    const j = await r.json();
+    return (j.matches || []).filter(m => m.rule && m.rule.category && LT_KEEP.has(m.rule.category.id) && !LT_DROP.test(m.rule.id))
+      .map(m => ({off: m.offset, len: m.length, msg: m.message, fix: (m.replacements || []).slice(0, 2).map(x => x.value)}));
+  }
+  function grammarBlock(){
+    return `<div class="field vgram"><label>文法チェック（自動・目安）</label><div class="vgbody sub">回答を文法チェックしています…</div>
+      <div class="sub">文字起こしの文章をLanguageToolに送ってチェックします。音声認識が文法を自動で直してしまうことがあるため、見つからなくてもミスがないとは限りません。</div></div>`;
+  }
+  async function fillGrammar(root, text, sink){
+    const body = root.querySelector(".vgbody"); if (!body) return;
+    if (!text || !text.trim()){ body.textContent = "回答がないのでチェックしていません。"; return; }
+    try {
+      const ms = await grammarCheck(text);
+      if (sink) sink.splice(0, sink.length, ...ms);
+      if (!ms.length){ body.textContent = "目立つ文法ミスは見つかりませんでした。"; return; }
+      body.className = "vgbody";
+      body.innerHTML = `<ul class="finds">${ms.map(m => {
+        const a = Math.max(0, m.off - 28), pre = text.slice(a, m.off), bad = text.slice(m.off, m.off + m.len), post = text.slice(m.off + m.len, m.off + m.len + 28);
+        return `<li class="ng" style="display:grid"><span class="ic">✗</span><span><span class="vctx">${a > 0 ? "…" : ""}${esc(pre)}<mark>${esc(bad)}</mark>${esc(post)}…</span>
+          ${m.fix.length ? `<div><b>→ ${m.fix.map(esc).join(" / ")}</b></div>` : ""}<div class="tp">${esc(m.msg)}</div></span></li>`;
+      }).join("")}</ul>`;
+    } catch(e){
+      body.textContent = /429/.test(e.message) ? "文法チェックの回数制限にかかりました。1分ほど待ってからもう一度開いてください。" : "文法チェックに接続できませんでした（" + e.message + "）。";
+    }
+  }
+
+  function claudePrompt(p, it, tr, st, score, grammar){
+    const P = bank.parts[p];
+    const script = p === "C" ? it.lines.map(l => `${l.s === "M" ? "Man" : "Woman"}: ${l.t}`).join("\n") + `\nQuestion: ${it.q}`
+      : p === "D" ? `${it.passage}\nQuestion: ${it.q}` : p === "B" ? it.text : (it.q || it.passage || "");
+    const g = grammar && grammar.length ? grammar.map(m => `- "${(tr && tr.display || "").slice(m.off, m.off + m.len)}" → ${m.fix.join(" / ") || "?"}（${m.msg}）`).join("\n") : "（自動チェックでは見つからず）";
+    return `Versant English Speaking and Listening Test の練習をしています。Part ${p}（${P.name} / ${P.en}、回答時間${P.time}秒）の私の回答を添削してください。
+
+【問題】
+${script}
+
+【私の回答（音声認識による文字起こし）】
+${tr && tr.display ? tr.display : "（回答なし）"}
+${it.model ? `\n【模範解答の例】\n${it.model}\n` : ""}
+【計測値】話し始め ${st.latency == null ? "–" : st.latency.toFixed(1) + "秒"}／語数 ${st.words}／WPM ${st.wpm ?? "–"}／フィラー ${st.fillers}回／1秒以上の間 ${st.pauses}回${score != null ? `／アプリの自動判定 ${score}%` : ""}
+
+【自動文法チェックの指摘】
+${g}
+
+お願い：
+1. 文法の誤りを1つずつ「誤 → 正」と理由を日本語で（音声認識の誤認識らしいものは区別して）
+2. 同じ内容を、私のレベルで本番でも言える自然な英語に言い直した例
+3. Versantの採点（内容の語彙・文法・流暢さ）を意識して、次に気をつけることを3つまで`;
+  }
+  function claudeButton(getText){
+    const wrap = document.createElement("div"); wrap.className = "row";
+    wrap.innerHTML = `<button class="btn ghost small">Claudeに聞く（コピー）</button><span class="sub"></span>`;
+    wrap.querySelector("button").addEventListener("click", async () => {
+      const msg = wrap.querySelector(".sub");
+      try { await navigator.clipboard.writeText(getText()); msg.textContent = "コピーしました。Claudeのチャットに貼ってください。"; }
+      catch(e){ msg.textContent = "コピーできませんでした。"; }
+    });
+    return wrap;
+  }
 
   /* ================= 本番模擬モード ================= */
   const PLAN = [["A",8],["B",16],["C",6],["D",6],["E",2],["F",2]];
@@ -643,9 +720,14 @@ if (typeof window !== "undefined") (function(){
           ${e.r.blob ? `<audio controls playsinline preload="none" src="${URL.createObjectURL(e.r.blob)}"></audio>` : ""}
           <div class="field"><label>あなたの回答</label><div class="vbox">${e.tr ? esc(e.tr.display || "（なし）") : esc("文字起こしできませんでした " + e.err)}</div></div>
           <div class="field"><label>問題のスクリプト</label><div class="vbox">${scriptHTML(e.p, e.it)}</div></div>
+          ${(e.p === "E" || e.p === "F") && e.tr && e.tr.display ? grammarBlock() : ""}
           ${e.it.model ? `<div class="field"><label>模範解答</label><div class="vbox">${esc(e.it.model)}</div></div>` : ""}
         </div>`;
       d.querySelector(".vsumtxt").textContent = `${k + 1}. ${(e.it.q || e.it.text || e.it.passage || "").slice(0, 48)}…`;
+      const grammar = [];
+      let checked = false;
+      d.addEventListener("toggle", () => { if (d.open && !checked && d.querySelector(".vgram")){ checked = true; fillGrammar(d, e.tr.display, grammar); } });
+      d.querySelector(".vdet").appendChild(claudeButton(() => claudePrompt(e.p, e.it, e.tr, e.stats, e.score, grammar)));
       box.appendChild(d);
     });
     window.scrollTo(0, 0);
