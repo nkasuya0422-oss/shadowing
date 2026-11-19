@@ -232,14 +232,42 @@ if (typeof window !== "undefined") (function(){
     });
   }
   async function playPrompt(token, p = part, it = item){
+    return playSegments(() => token === run, p, it);
+  }
+  async function playSegments(alive, p, it){
     for (const s of segments(p, it)){
-      if (token !== run) return;
-      if (s.pre) await wait(s.pre);
+      if (!alive()) return;
+      if (s.pre){ await wait(s.pre); if (!alive()) return; }
       if (az()) await playUrl(await azClip(s.t, VOICE[s.v], 1), 0);
       else if (synth) await speakWith(s.t, s.v);
       else throw new Error("tts");
       if (s.gap) await wait(s.gap);
     }
+  }
+
+  /* listen-only replay of the prompt after the answer has been checked (no recording) */
+  const LISTEN = "🔊 問題の音声をもう一度聞く";
+  let lrun = 0, listenBtn = null;
+  function stopListen(){
+    if (!listenBtn) return;
+    lrun++; try { stopModel(); } catch(e){}
+    listenBtn.textContent = LISTEN; listenBtn = null;
+  }
+  function listenButton(p, it){
+    const wrap = document.createElement("div"); wrap.className = "row";
+    wrap.innerHTML = `<button class="btn ghost small"></button><span class="sub"></span>`;
+    const b = wrap.querySelector("button"), msg = wrap.querySelector(".sub");
+    b.textContent = LISTEN;
+    b.addEventListener("click", async () => {
+      if (listenBtn === b){ stopListen(); return; }
+      stopListen();
+      const my = ++lrun; listenBtn = b; b.textContent = "■ 止める"; msg.textContent = "";
+      unlockAudio();
+      try { await playSegments(() => my === lrun, p, it); }
+      catch(e){ if (my === lrun) msg.textContent = "音声を再生できませんでした。"; }
+      if (my === lrun){ listenBtn = null; b.textContent = LISTEN; }
+    });
+    return wrap;
   }
   async function prefetch(p = part, it = item){
     if (!az()) return;
@@ -248,6 +276,7 @@ if (typeof window !== "undefined") (function(){
 
   /* ---------- one attempt: prompt → answer window → analysis ---------- */
   function cancel(){
+    stopListen();
     run++;
     const busy = state !== "idle" || rec;
     try { stopModel(); } catch(e){}
@@ -453,12 +482,13 @@ if (typeof window !== "undefined") (function(){
       <div class="sub">${long ? "WPMは1分あたりの語数（目安 110〜150）。" : ""}フィラー（um, uh など）は音声認識で消えることがあるので少なめに出ます。</div>
       ${r.blob ? `<div class="field"><label>自分の録音</label><audio controls playsinline src="${URL.createObjectURL(r.blob)}"></audio></div>` : ""}
       <div class="field"><label>あなたの回答（文字起こし）</label><div class="vbox">${tr ? esc(tr.display || "（聞き取れませんでした）") : "–"}</div></div>
-      <div class="field"><label>問題のスクリプト</label><div class="vbox">${scriptHTML()}</div></div>
+      <div class="field"><label>問題のスクリプト</label><div class="vlisten"></div><div class="vbox">${scriptHTML()}</div></div>
       ${long && tr ? grammarBlock() : ""}
       ${item.model ? `<div class="field"><label>模範解答</label><div class="vbox">${esc(item.model)}</div></div>` : ""}
       <div id="vAsk"></div>
       <div class="row"><button class="btn ghost" id="vAgain">もう一度この問題</button><button class="btn" id="vNext">次の問題 →</button></div>`;
     const grammar = [], p0 = part, it0 = item;
+    box.querySelector(".vlisten").appendChild(listenButton(p0, it0));
     if (long && tr) fillGrammar(box, tr.display, grammar);
     $("vAsk").appendChild(claudeButton(() => claudePrompt(p0, it0, tr, st, lastScore, grammar)));
     $("vAgain").addEventListener("click", () => { $("vResult").hidden = true; begin(); });
@@ -706,8 +736,8 @@ ${g}
       ${summaryTable(sm)}
       <div class="row"><button class="btn ghost" id="vHome2">パート一覧へ</button><button class="btn" id="vRetry">もう一度受ける</button></div></div>
       <div class="card"><h2>問題ごとの結果</h2><div class="sub">タップすると、スクリプト・あなたの回答・録音・模範解答を確認できます。</div><div id="vItems"></div></div>`;
-    $("vHome2").addEventListener("click", renderHome);
-    $("vRetry").addEventListener("click", mockIntro);
+    $("vHome2").addEventListener("click", () => { stopListen(); renderHome(); });
+    $("vRetry").addEventListener("click", () => { stopListen(); mockIntro(); });
     const box = $("vItems");
     res.forEach((e, k) => {
       const d = document.createElement("details"); d.className = "vitem";
@@ -719,11 +749,12 @@ ${g}
           <div class="sub">話し始め ${e.r.onset == null ? "–" : e.r.onset.toFixed(1) + "秒"}・フィラー ${e.stats.fillers}回・1秒以上の間 ${e.stats.pauses}回${e.stats.wpm ? "・WPM " + e.stats.wpm : ""}</div>
           ${e.r.blob ? `<audio controls playsinline preload="none" src="${URL.createObjectURL(e.r.blob)}"></audio>` : ""}
           <div class="field"><label>あなたの回答</label><div class="vbox">${e.tr ? esc(e.tr.display || "（なし）") : esc("文字起こしできませんでした " + e.err)}</div></div>
-          <div class="field"><label>問題のスクリプト</label><div class="vbox">${scriptHTML(e.p, e.it)}</div></div>
+          <div class="field"><label>問題のスクリプト</label><div class="vlisten"></div><div class="vbox">${scriptHTML(e.p, e.it)}</div></div>
           ${(e.p === "E" || e.p === "F") && e.tr && e.tr.display ? grammarBlock() : ""}
           ${e.it.model ? `<div class="field"><label>模範解答</label><div class="vbox">${esc(e.it.model)}</div></div>` : ""}
         </div>`;
       d.querySelector(".vsumtxt").textContent = `${k + 1}. ${(e.it.q || e.it.text || e.it.passage || "").slice(0, 48)}…`;
+      d.querySelector(".vlisten").appendChild(listenButton(e.p, e.it));
       const grammar = [];
       let checked = false;
       d.addEventListener("toggle", () => { if (d.open && !checked && d.querySelector(".vgram")){ checked = true; fillGrammar(d, e.tr.display, grammar); } });
