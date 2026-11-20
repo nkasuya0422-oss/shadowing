@@ -158,11 +158,20 @@ if (typeof window !== "undefined") (function(){
   }
 
   /* ---------- question screen ---------- */
+  /* random order without repeats: each part keeps a shuffled deck of item ids; when it runs out
+     (or new questions are added) it is reshuffled, never starting with the item just answered */
   function nextItem(p){
-    const P = bank.parts[p], k = "v-pos-" + p;
-    const pos = store.get(k, 0) % P.items.length;
-    store.set(k, pos + 1);
-    return {it: P.items[pos], n: pos + 1, total: P.items.length};
+    const P = bank.parts[p], k = "v-deck-" + p, ids = P.items.map(x => x.id);
+    let d = store.get(k, null);
+    if (!d || !Array.isArray(d.order) || d.order.length !== ids.length || d.order.some(id => !ids.includes(id)) || d.pos >= d.order.length){
+      const last = d && d.order ? d.order[d.pos - 1] : null;
+      let order = shuffle(ids);
+      if (order.length > 1 && order[0] === last) order.push(order.shift());
+      d = {order, pos: 0};
+    }
+    const id = d.order[d.pos]; d.pos++;
+    store.set(k, d);
+    return {it: P.items.find(x => x.id === id), n: d.pos, total: ids.length};
   }
   function openPart(p){ part = p; showQuestion(nextItem(p)); }
 

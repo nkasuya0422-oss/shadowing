@@ -210,6 +210,190 @@
       "cook"
      ],
      "model": "A chef."
+    },
+    {
+     "id": "A25",
+     "q": "Is a bicycle something you ride or something you eat?",
+     "accept": [
+      "ride"
+     ],
+     "model": "Something you ride."
+    },
+    {
+     "id": "A26",
+     "q": "What do you call a person who teaches at a school?",
+     "accept": [
+      "teacher"
+     ],
+     "model": "A teacher."
+    },
+    {
+     "id": "A27",
+     "q": "Which is heavier, a feather or a brick?",
+     "accept": [
+      "brick"
+     ],
+     "model": "A brick."
+    },
+    {
+     "id": "A28",
+     "q": "How many minutes are there in an hour?",
+     "accept": [
+      "sixty",
+      "60"
+     ],
+     "model": "Sixty."
+    },
+    {
+     "id": "A29",
+     "q": "Do you wear a hat on your head or on your feet?",
+     "accept": [
+      "head"
+     ],
+     "model": "On your head."
+    },
+    {
+     "id": "A30",
+     "q": "What day comes after Friday?",
+     "accept": [
+      "saturday"
+     ],
+     "model": "Saturday."
+    },
+    {
+     "id": "A31",
+     "q": "If you want to mail a letter, do you need a stamp or a ticket?",
+     "accept": [
+      "stamp"
+     ],
+     "model": "A stamp."
+    },
+    {
+     "id": "A32",
+     "q": "What do you call the meal people eat in the evening?",
+     "accept": [
+      "dinner",
+      "supper"
+     ],
+     "model": "Dinner."
+    },
+    {
+     "id": "A33",
+     "q": "Do people usually see the sun during the day or at night?",
+     "accept": [
+      "day"
+     ],
+     "model": "During the day."
+    },
+    {
+     "id": "A34",
+     "q": "To cut paper, would you use scissors or a spoon?",
+     "accept": [
+      "scissor"
+     ],
+     "model": "Scissors."
+    },
+    {
+     "id": "A35",
+     "q": "If a train leaves at two and the trip takes three hours, what time does it arrive?",
+     "accept": [
+      "five",
+      "5"
+     ],
+     "model": "At five."
+    },
+    {
+     "id": "A36",
+     "q": "Where do people usually go to watch a new movie?",
+     "accept": [
+      "theater",
+      "theatre",
+      "cinema"
+     ],
+     "model": "A movie theater."
+    },
+    {
+     "id": "A37",
+     "q": "Which is faster, an airplane or a bicycle?",
+     "accept": [
+      "airplane",
+      "plane"
+     ],
+     "model": "An airplane."
+    },
+    {
+     "id": "A38",
+     "q": "Do fish live in water or in trees?",
+     "accept": [
+      "water"
+     ],
+     "model": "In water."
+    },
+    {
+     "id": "A39",
+     "q": "If you have three apples and eat one, how many are left?",
+     "accept": [
+      "two",
+      "2"
+     ],
+     "model": "Two."
+    },
+    {
+     "id": "A40",
+     "q": "What do you call a place where planes take off and land?",
+     "accept": [
+      "airport"
+     ],
+     "model": "An airport."
+    },
+    {
+     "id": "A41",
+     "q": "Do people usually sleep in a bedroom or in a garage?",
+     "accept": [
+      "bedroom"
+     ],
+     "model": "In a bedroom."
+    },
+    {
+     "id": "A42",
+     "q": "Which season is usually the coldest?",
+     "accept": [
+      "winter"
+     ],
+     "model": "Winter."
+    },
+    {
+     "id": "A43",
+     "q": "If you're sick, do you go to see a doctor or a lawyer?",
+     "accept": [
+      "doctor"
+     ],
+     "model": "A doctor."
+    },
+    {
+     "id": "A44",
+     "q": "How many wheels does a normal car have?",
+     "accept": [
+      "four",
+      "4"
+     ],
+     "model": "Four."
+    },
+    {
+     "id": "A45",
+     "q": "What do you call the money you pay every month to live in an apartment?",
+     "accept": [
+      "rent"
+     ],
+     "model": "Rent."
+    },
+    {
+     "id": "A46",
+     "q": "Is a meeting that happens every week a weekly meeting or a yearly meeting?",
+     "accept": [
+      "weekly"
+     ],
+     "model": "A weekly meeting."
     }
    ]
   },
@@ -314,6 +498,94 @@
     {
      "id": "B24",
      "text": "The library will close on Monday while the staff move to a new building."
+    },
+    {
+     "id": "B25",
+     "text": "Please call me back when you're free."
+    },
+    {
+     "id": "B26",
+     "text": "The meeting has been moved to Tuesday."
+    },
+    {
+     "id": "B27",
+     "text": "I left my umbrella on the train."
+    },
+    {
+     "id": "B28",
+     "text": "Can you tell me where the nearest station is?"
+    },
+    {
+     "id": "B29",
+     "text": "We're out of coffee, so I'll buy some."
+    },
+    {
+     "id": "B30",
+     "text": "The new manager starts next Monday morning."
+    },
+    {
+     "id": "B31",
+     "text": "Let me know if you need any help."
+    },
+    {
+     "id": "B32",
+     "text": "The bus was late, so I missed the start."
+    },
+    {
+     "id": "B33",
+     "text": "Do you know what time the bank closes today?"
+    },
+    {
+     "id": "B34",
+     "text": "I've already sent the invoice to the client."
+    },
+    {
+     "id": "B35",
+     "text": "She usually takes the train because driving is too expensive."
+    },
+    {
+     "id": "B36",
+     "text": "Make sure you save the file before you close it."
+    },
+    {
+     "id": "B37",
+     "text": "The restaurant near the office gets very busy at lunchtime."
+    },
+    {
+     "id": "B38",
+     "text": "We should book the hotel early because prices go up quickly."
+    },
+    {
+     "id": "B39",
+     "text": "If you finish the report early, please send it to me."
+    },
+    {
+     "id": "B40",
+     "text": "The elevator is out of order, so please use the stairs."
+    },
+    {
+     "id": "B41",
+     "text": "He apologized for the delay and promised to fix it by tomorrow."
+    },
+    {
+     "id": "B42",
+     "text": "I'd rather work from home on Fridays because it's much quieter."
+    },
+    {
+     "id": "B43",
+     "text": "The customer asked whether we could deliver the order a day earlier."
+    },
+    {
+     "id": "B44",
+     "text": "Could you check if there are any seats left on the evening flight?"
+    },
+    {
+     "id": "B45",
+     "text": "Everyone agreed that the new schedule works better than the old one."
+    },
+    {
+     "id": "B46",
+     "text": "Because of the heavy snow, several trains were canceled this morning."
     }
    ]
   },
@@ -779,6 +1051,441 @@
       "sunday"
      ],
      "model": "On Sunday."
+    },
+    {
+     "id": "C23",
+     "lines": [
+      {
+       "s": "W",
+       "t": "Can we have the meeting on Monday?"
+      },
+      {
+       "s": "M",
+       "t": "I'm out of the office on Monday. How about Tuesday afternoon?"
+      },
+      {
+       "s": "W",
+       "t": "Tuesday afternoon is fine."
+      }
+     ],
+     "q": "When will they have the meeting?",
+     "accept": [
+      "tuesday"
+     ],
+     "model": "On Tuesday afternoon."
+    },
+    {
+     "id": "C24",
+     "lines": [
+      {
+       "s": "M",
+       "t": "Should we get a cake for her birthday?"
+      },
+      {
+       "s": "W",
+       "t": "She's on a diet. Let's get flowers instead."
+      },
+      {
+       "s": "M",
+       "t": "Good idea."
+      }
+     ],
+     "q": "What will they get for her birthday?",
+     "accept": [
+      "flower"
+     ],
+     "model": "Flowers."
+    },
+    {
+     "id": "C25",
+     "lines": [
+      {
+       "s": "W",
+       "t": "How many copies do you need?"
+      },
+      {
+       "s": "M",
+       "t": "Twenty for the meeting, plus five extra."
+      }
+     ],
+     "q": "How many copies does the man need in total?",
+     "accept": [
+      "twenty five",
+      "25"
+     ],
+     "model": "Twenty-five."
+    },
+    {
+     "id": "C26",
+     "lines": [
+      {
+       "s": "M",
+       "t": "Is the restaurant on the third floor?"
+      },
+      {
+       "s": "W",
+       "t": "It used to be, but it moved to the first floor last year."
+      }
+     ],
+     "q": "Which floor is the restaurant on now?",
+     "accept": [
+      "first",
+      "1st"
+     ],
+     "model": "The first floor."
+    },
+    {
+     "id": "C27",
+     "lines": [
+      {
+       "s": "W",
+       "t": "Did you take the early train?"
+      },
+      {
+       "s": "M",
+       "t": "I meant to, but I overslept, so I took the nine o'clock train."
+      }
+     ],
+     "q": "Which train did the man take?",
+     "accept": [
+      "nine",
+      "9"
+     ],
+     "model": "The nine o'clock train."
+    },
+    {
+     "id": "C28",
+     "lines": [
+      {
+       "s": "M",
+       "t": "Can I pay by card?"
+      },
+      {
+       "s": "W",
+       "t": "Sorry, our card machine is broken. It's cash only today."
+      }
+     ],
+     "q": "How does the man have to pay?",
+     "accept": [
+      "cash"
+     ],
+     "model": "In cash."
+    },
+    {
+     "id": "C29",
+     "lines": [
+      {
+       "s": "W",
+       "t": "Who's going to lead the new project?"
+      },
+      {
+       "s": "M",
+       "t": "Tom was going to, but he's too busy, so Maria will do it."
+      }
+     ],
+     "q": "Who will lead the project?",
+     "accept": [
+      "maria"
+     ],
+     "model": "Maria."
+    },
+    {
+     "id": "C30",
+     "lines": [
+      {
+       "s": "M",
+       "t": "How long is the drive to the beach?"
+      },
+      {
+       "s": "W",
+       "t": "About an hour, but on weekends it can take two."
+      },
+      {
+       "s": "M",
+       "t": "Then let's go on Friday."
+      }
+     ],
+     "q": "When will they go to the beach?",
+     "accept": [
+      "friday"
+     ],
+     "model": "On Friday."
+    },
+    {
+     "id": "C31",
+     "lines": [
+      {
+       "s": "W",
+       "t": "Did you buy the blue shirt?"
+      },
+      {
+       "s": "M",
+       "t": "They only had it in small, so I got the green one instead."
+      }
+     ],
+     "q": "What color shirt did the man buy?",
+     "accept": [
+      "green"
+     ],
+     "model": "Green."
+    },
+    {
+     "id": "C32",
+     "lines": [
+      {
+       "s": "M",
+       "t": "Why is the office so cold?"
+      },
+      {
+       "s": "W",
+       "t": "The heater broke this morning. Someone's coming to fix it at two."
+      }
+     ],
+     "q": "Why is the office cold?",
+     "accept": [
+      "heater",
+      "broke",
+      "broken"
+     ],
+     "model": "Because the heater broke."
+    },
+    {
+     "id": "C33",
+     "lines": [
+      {
+       "s": "W",
+       "t": "Should I send this package by express mail?"
+      },
+      {
+       "s": "M",
+       "t": "Regular mail is fine. It doesn't need to arrive until next week."
+      }
+     ],
+     "q": "How will the woman send the package?",
+     "accept": [
+      "regular",
+      "normal"
+     ],
+     "model": "By regular mail."
+    },
+    {
+     "id": "C34",
+     "lines": [
+      {
+       "s": "M",
+       "t": "Are you coming to the party tonight?"
+      },
+      {
+       "s": "W",
+       "t": "I have to work late, but I'll come after nine."
+      }
+     ],
+     "q": "When will the woman come to the party?",
+     "accept": [
+      "nine",
+      "9"
+     ],
+     "model": "After nine."
+    },
+    {
+     "id": "C35",
+     "lines": [
+      {
+       "s": "W",
+       "t": "How much is the monthly gym membership?"
+      },
+      {
+       "s": "M",
+       "t": "It's sixty dollars, but students pay forty."
+      },
+      {
+       "s": "W",
+       "t": "Great, I'm a student."
+      }
+     ],
+     "q": "How much will the woman pay?",
+     "accept": [
+      "forty",
+      "40"
+     ],
+     "model": "Forty dollars."
+    },
+    {
+     "id": "C36",
+     "lines": [
+      {
+       "s": "M",
+       "t": "Where should we put the new printer?"
+      },
+      {
+       "s": "W",
+       "t": "Not by the window. Let's put it next to the kitchen."
+      }
+     ],
+     "q": "Where will they put the printer?",
+     "accept": [
+      "kitchen"
+     ],
+     "model": "Next to the kitchen."
+    },
+    {
+     "id": "C37",
+     "lines": [
+      {
+       "s": "W",
+       "t": "Is it going to rain this afternoon?"
+      },
+      {
+       "s": "M",
+       "t": "The forecast says it'll clear up by noon."
+      }
+     ],
+     "q": "What will the weather be like this afternoon?",
+     "accept": [
+      "clear",
+      "sunny",
+      "no rain",
+      "not rain",
+      "nice"
+     ],
+     "model": "It will be clear."
+    },
+    {
+     "id": "C38",
+     "lines": [
+      {
+       "s": "M",
+       "t": "Did you finish reading the book?"
+      },
+      {
+       "s": "W",
+       "t": "Not yet. I'm about halfway through."
+      }
+     ],
+     "q": "How much of the book has the woman read?",
+     "accept": [
+      "half"
+     ],
+     "model": "About half."
+    },
+    {
+     "id": "C39",
+     "lines": [
+      {
+       "s": "W",
+       "t": "Can you pick up the client at the airport?"
+      },
+      {
+       "s": "M",
+       "t": "I'm busy then, but Ken can go."
+      },
+      {
+       "s": "W",
+       "t": "Great, I'll ask Ken."
+      }
+     ],
+     "q": "Who will pick up the client?",
+     "accept": [
+      "ken"
+     ],
+     "model": "Ken."
+    },
+    {
+     "id": "C40",
+     "lines": [
+      {
+       "s": "M",
+       "t": "What time does the store open on Sundays?"
+      },
+      {
+       "s": "W",
+       "t": "At eleven. That's two hours later than on weekdays."
+      }
+     ],
+     "q": "What time does the store open on Sundays?",
+     "accept": [
+      "eleven",
+      "11"
+     ],
+     "model": "At eleven."
+    },
+    {
+     "id": "C41",
+     "lines": [
+      {
+       "s": "W",
+       "t": "How did the interview go?"
+      },
+      {
+       "s": "M",
+       "t": "Pretty well. They asked me to come back for a second interview next week."
+      }
+     ],
+     "q": "What will happen next week?",
+     "accept": [
+      "second interview",
+      "interview"
+     ],
+     "model": "A second interview."
+    },
+    {
+     "id": "C42",
+     "lines": [
+      {
+       "s": "M",
+       "t": "Should I order a large pizza or a medium one?"
+      },
+      {
+       "s": "W",
+       "t": "There are six of us. Get two large ones."
+      }
+     ],
+     "q": "What will the man order?",
+     "accept": [
+      "two large",
+      "large"
+     ],
+     "model": "Two large pizzas."
+    },
+    {
+     "id": "C43",
+     "lines": [
+      {
+       "s": "W",
+       "t": "Did the package arrive?"
+      },
+      {
+       "s": "M",
+       "t": "Not yet. The tracking says it'll come tomorrow morning."
+      }
+     ],
+     "q": "When will the package arrive?",
+     "accept": [
+      "tomorrow"
+     ],
+     "model": "Tomorrow morning."
+    },
+    {
+     "id": "C44",
+     "lines": [
+      {
+       "s": "M",
+       "t": "Can you work this Saturday?"
+      },
+      {
+       "s": "W",
+       "t": "I can't on Saturday, but I can work Sunday morning."
+      },
+      {
+       "s": "M",
+       "t": "Sunday morning works."
+      }
+     ],
+     "q": "When will the woman work?",
+     "accept": [
+      "sunday"
+     ],
+     "model": "On Sunday morning."
     }
    ]
   },
@@ -1000,6 +1707,210 @@
       "evening"
      ],
      "model": "Free evenings on Fridays."
+    },
+    {
+     "id": "D23",
+     "passage": "Rika started a small online shop selling handmade bags. At first, she sold only two bags a month. After she began posting videos of her work, orders rose to about thirty a month.",
+     "q": "How many bags did Rika sell each month at first?",
+     "accept": [
+      "two",
+      "2"
+     ],
+     "model": "Two bags a month."
+    },
+    {
+     "id": "D24",
+     "passage": "The office switched to paperless meetings last spring. Each employee received a tablet instead of printed documents. The company now saves about two thousand dollars a year on paper.",
+     "q": "What did each employee receive?",
+     "accept": [
+      "tablet"
+     ],
+     "model": "A tablet."
+    },
+    {
+     "id": "D25",
+     "passage": "Carlos usually drives to work, but his car was being repaired. He tried cycling for a week. He enjoyed it so much that he now cycles three days a week.",
+     "q": "Why did Carlos try cycling?",
+     "accept": [
+      "repair",
+      "car"
+     ],
+     "model": "Because his car was being repaired."
+    },
+    {
+     "id": "D26",
+     "passage": "A hotel noticed that many guests wanted to check out late. It started offering checkout at two o'clock for a small fee. Most guests were happy to pay it.",
+     "q": "What time is the late checkout?",
+     "accept": [
+      "two",
+      "2"
+     ],
+     "model": "At two o'clock."
+    },
+    {
+     "id": "D27",
+     "passage": "The town held its first night market in June. About five hundred people came, many more than expected. The organizers decided to hold the market every month.",
+     "q": "How often will the market be held?",
+     "accept": [
+      "every month",
+      "monthly",
+      "once a month"
+     ],
+     "model": "Every month."
+    },
+    {
+     "id": "D28",
+     "passage": "Akira's team was always late with their weekly reports. Their manager created a simple template for everyone to use. After that, the reports were finished every Friday by noon.",
+     "q": "What did the manager create?",
+     "accept": [
+      "template"
+     ],
+     "model": "A simple template."
+    },
+    {
+     "id": "D29",
+     "passage": "Sophie's train stopped because of a power failure. She called her boss to say she would be late. The trains started again an hour later, and she arrived just before lunch.",
+     "q": "Why did the train stop?",
+     "accept": [
+      "power"
+     ],
+     "model": "Because of a power failure."
+    },
+    {
+     "id": "D30",
+     "passage": "A bookstore opened a small café inside the shop. Customers started staying longer, and book sales went up by twenty percent.",
+     "q": "By how much did book sales go up?",
+     "accept": [
+      "twenty",
+      "20"
+     ],
+     "model": "By twenty percent."
+    },
+    {
+     "id": "D31",
+     "passage": "Mr. Lee decided to learn to swim when he was sixty. He took lessons twice a week at the local pool. After a year, he could swim one kilometer without stopping.",
+     "q": "How old was Mr. Lee when he started learning to swim?",
+     "accept": [
+      "sixty",
+      "60"
+     ],
+     "model": "Sixty."
+    },
+    {
+     "id": "D32",
+     "passage": "A company changed its lunch break from forty-five minutes to one hour. Employees said they felt less tired in the afternoon, and mistakes decreased.",
+     "q": "How long is the lunch break now?",
+     "accept": [
+      "one hour",
+      "an hour",
+      "hour",
+      "sixty"
+     ],
+     "model": "One hour."
+    },
+    {
+     "id": "D33",
+     "passage": "Nora planned to buy a new phone, but the price went up. She decided to replace her old phone's battery instead, which cost only fifty dollars.",
+     "q": "What did Nora decide to do?",
+     "accept": [
+      "battery",
+      "repair",
+      "fix"
+     ],
+     "model": "Replace her old phone's battery."
+    },
+    {
+     "id": "D34",
+     "passage": "A small museum had very few young visitors. It started offering free guided tours on Saturday afternoons. Within two months, the number of young visitors tripled.",
+     "q": "When are the free tours?",
+     "accept": [
+      "saturday"
+     ],
+     "model": "On Saturday afternoons."
+    },
+    {
+     "id": "D35",
+     "passage": "Peter forgot his wife's birthday last year. This year, he set three reminders on his phone and booked her favorite restaurant two weeks in advance.",
+     "q": "How many reminders did Peter set?",
+     "accept": [
+      "three",
+      "3"
+     ],
+     "model": "Three."
+    },
+    {
+     "id": "D36",
+     "passage": "The city closed the main bridge for repairs for three months. Many drivers had to take a longer road, so the city added extra buses during rush hour.",
+     "q": "How long was the bridge closed?",
+     "accept": [
+      "three months",
+      "3 months"
+     ],
+     "model": "For three months."
+    },
+    {
+     "id": "D37",
+     "passage": "Mina's company moved to a new building near the station. Her commute became thirty minutes shorter, so she started going to the gym in the morning.",
+     "q": "What did Mina start doing?",
+     "accept": [
+      "gym",
+      "exercise",
+      "work out"
+     ],
+     "model": "Going to the gym in the morning."
+    },
+    {
+     "id": "D38",
+     "passage": "A farmer's tomatoes were too small to sell to supermarkets. He began making tomato sauce with them instead. The sauce became so popular that he now sells it online.",
+     "q": "What did the farmer make with the small tomatoes?",
+     "accept": [
+      "sauce"
+     ],
+     "model": "Tomato sauce."
+    },
+    {
+     "id": "D39",
+     "passage": "Leo applied for ten jobs but didn't get any interviews. A friend helped him rewrite his resume. After that, he got three interviews in two weeks.",
+     "q": "Who helped Leo with his resume?",
+     "accept": [
+      "friend"
+     ],
+     "model": "A friend."
+    },
+    {
+     "id": "D40",
+     "passage": "An online class was supposed to start at seven. The teacher's internet stopped working, so the class began fifteen minutes late.",
+     "q": "How late did the class begin?",
+     "accept": [
+      "fifteen",
+      "15"
+     ],
+     "model": "Fifteen minutes late."
+    },
+    {
+     "id": "D41",
+     "passage": "Grace noticed that her electricity bill was very high in winter. She bought thicker curtains and a small heater for one room. Her next bill was thirty percent lower.",
+     "q": "What happened to Grace's next bill?",
+     "accept": [
+      "lower",
+      "thirty",
+      "30",
+      "down",
+      "less"
+     ],
+     "model": "It was thirty percent lower."
+    },
+    {
+     "id": "D42",
+     "passage": "A supermarket stopped giving out free plastic bags. At first, some customers complained. But within a few months, most people brought their own bags.",
+     "q": "What did most people do within a few months?",
+     "accept": [
+      "own bag",
+      "their own",
+      "brought",
+      "bring"
+     ],
+     "model": "They brought their own bags."
     }
    ]
   },
@@ -1523,6 +2434,499 @@
       ]
      },
      "model": "This story is about Kate. She found a wallet with no ID, only a library card. Then she took it to the library, and the staff contacted the owner. In the end, the owner thanked her and invited her for coffee."
+    },
+    {
+     "id": "E22",
+     "passage": "Hiro was supposed to give a speech at his friend's wedding, but he lost his notes on the way. He felt nervous, so he decided to speak from the heart. He told a funny story about how they met in college. Everyone laughed, and the bride said it was the best speech of the night.",
+     "keys": {
+      "person": [
+       "hiro"
+      ],
+      "problem": [
+       "lost",
+       "notes"
+      ],
+      "action": [
+       "heart",
+       "story",
+       "funny"
+      ],
+      "result": [
+       "laugh",
+       "best"
+      ]
+     },
+     "model": "This story is about Hiro. He lost his notes before giving a speech at his friend's wedding. Then he spoke from the heart and told a funny story. In the end, everyone laughed, and the bride said it was the best speech."
+    },
+    {
+     "id": "E23",
+     "passage": "Sara's company asked her to give a presentation in English for the first time. She was worried because her English wasn't very good. She practiced every evening with a coworker for two weeks. The presentation went smoothly, and her manager asked her to lead the next one too.",
+     "keys": {
+      "person": [
+       "sara"
+      ],
+      "problem": [
+       "worried",
+       "english",
+       "first time"
+      ],
+      "action": [
+       "practic",
+       "coworker"
+      ],
+      "result": [
+       "smooth",
+       "went well",
+       "next one",
+       "lead"
+      ]
+     },
+     "model": "This story is about Sara. She had to give her first presentation in English and was worried. Then she practiced every evening with a coworker. In the end, it went smoothly, and she was asked to lead the next one."
+    },
+    {
+     "id": "E24",
+     "passage": "A taxi driver named Joe found a passenger's laptop on the back seat. The passenger had already gone into the airport. Joe parked, ran inside, and found the man at the check-in counter. The man was so thankful that he gave Joe a big tip.",
+     "keys": {
+      "person": [
+       "joe",
+       "driver"
+      ],
+      "problem": [
+       "laptop",
+       "left",
+       "forgot"
+      ],
+      "action": [
+       "ran",
+       "airport",
+       "found the man",
+       "inside"
+      ],
+      "result": [
+       "tip",
+       "thank"
+      ]
+     },
+     "model": "This story is about Joe, a taxi driver. A passenger left his laptop in the taxi. Then Joe ran into the airport and found the man. In the end, the man thanked him and gave him a big tip."
+    },
+    {
+     "id": "E25",
+     "passage": "Emi wanted to have a garden, but her apartment had no yard. She started growing herbs and tomatoes on her small balcony. By summer, she had enough vegetables to share with her neighbors.",
+     "keys": {
+      "person": [
+       "emi"
+      ],
+      "problem": [
+       "yard",
+       "garden"
+      ],
+      "action": [
+       "balcony",
+       "herb",
+       "grow"
+      ],
+      "result": [
+       "share",
+       "neighbor",
+       "enough"
+      ]
+     },
+     "model": "This story is about Emi. She wanted a garden, but her apartment had no yard. Then she grew herbs and tomatoes on her balcony. In the end, she had enough vegetables to share with her neighbors."
+    },
+    {
+     "id": "E26",
+     "passage": "The night before a big exam, a student named Dan lost all his notes when his laptop broke. He called a classmate, and she sent him a copy of her notes. Dan studied late into the night and passed the exam with a good score.",
+     "keys": {
+      "person": [
+       "dan",
+       "student"
+      ],
+      "problem": [
+       "broke",
+       "laptop",
+       "lost"
+      ],
+      "action": [
+       "classmate",
+       "copy",
+       "called"
+      ],
+      "result": [
+       "pass"
+      ]
+     },
+     "model": "This story is about Dan, a student. His laptop broke the night before an exam, and he lost his notes. Then a classmate sent him a copy of her notes. In the end, he studied late and passed the exam."
+    },
+    {
+     "id": "E27",
+     "passage": "Ms. Kato ran a small shop, but customers often asked for things she didn't sell. She put a notebook by the register where customers could write their requests. She started ordering the most popular items, and her sales grew steadily.",
+     "keys": {
+      "person": [
+       "kato",
+       "owner"
+      ],
+      "problem": [
+       "asked for",
+       "didn't sell",
+       "did not sell"
+      ],
+      "action": [
+       "notebook",
+       "request",
+       "write"
+      ],
+      "result": [
+       "sales",
+       "grew",
+       "grow"
+      ]
+     },
+     "model": "This story is about Ms. Kato. Customers kept asking for things her shop didn't sell. Then she put out a notebook for their requests and ordered the popular items. In the end, her sales grew."
+    },
+    {
+     "id": "E28",
+     "passage": "Ben planned a surprise party for his coworker, but the coworker found the invitation on the printer. Instead of canceling, Ben asked everyone to come in costumes. The coworker was still surprised by the costumes, and everyone had a great time.",
+     "keys": {
+      "person": [
+       "ben"
+      ],
+      "problem": [
+       "invitation",
+       "found",
+       "printer"
+      ],
+      "action": [
+       "costume"
+      ],
+      "result": [
+       "surprised",
+       "great time",
+       "fun"
+      ]
+     },
+     "model": "This story is about Ben. His coworker found the invitation to the surprise party. Then Ben asked everyone to come in costumes. In the end, the coworker was still surprised, and everyone had fun."
+    },
+    {
+     "id": "E29",
+     "passage": "A hiking group got lost when thick fog covered the mountain. Their leader told everyone to stay together and wait. When the fog cleared an hour later, they found the trail and got back safely.",
+     "keys": {
+      "person": [
+       "group",
+       "leader",
+       "hiker",
+       "hiking"
+      ],
+      "problem": [
+       "lost",
+       "fog"
+      ],
+      "action": [
+       "together",
+       "wait"
+      ],
+      "result": [
+       "safe",
+       "trail",
+       "got back"
+      ]
+     },
+     "model": "This story is about a hiking group. They got lost in thick fog on a mountain. Then the leader told them to stay together and wait. In the end, the fog cleared, and they got back safely."
+    },
+    {
+     "id": "E30",
+     "passage": "Kumi's flight home was overbooked, and the airline asked for volunteers to take a later flight. She agreed to wait. In return, she got a free night at a hotel and a voucher for her next trip.",
+     "keys": {
+      "person": [
+       "kumi"
+      ],
+      "problem": [
+       "overbook",
+       "full"
+      ],
+      "action": [
+       "volunteer",
+       "agreed",
+       "later flight",
+       "wait"
+      ],
+      "result": [
+       "voucher",
+       "free",
+       "hotel"
+      ]
+     },
+     "model": "This story is about Kumi. Her flight was overbooked. Then she agreed to take a later flight. In the end, she got a free hotel night and a voucher for her next trip."
+    },
+    {
+     "id": "E31",
+     "passage": "Tom's elderly neighbor couldn't carry her groceries up the stairs. Tom offered to help her every Saturday. Over time, they became good friends, and she taught him how to cook her famous soup.",
+     "keys": {
+      "person": [
+       "tom"
+      ],
+      "problem": [
+       "carry",
+       "groceries",
+       "stairs"
+      ],
+      "action": [
+       "help",
+       "saturday",
+       "offered"
+      ],
+      "result": [
+       "friend",
+       "soup",
+       "cook"
+      ]
+     },
+     "model": "This story is about Tom. His elderly neighbor couldn't carry her groceries up the stairs. Then he helped her every Saturday. In the end, they became friends, and she taught him to cook her soup."
+    },
+    {
+     "id": "E32",
+     "passage": "A new coffee shop opened, but almost no one came in the first week. The owner gave free coffee to people waiting at the bus stop outside. Many of them came back later as paying customers.",
+     "keys": {
+      "person": [
+       "owner",
+       "coffee shop",
+       "café"
+      ],
+      "problem": [
+       "no one",
+       "nobody",
+       "empty",
+       "few customers"
+      ],
+      "action": [
+       "free coffee",
+       "bus stop"
+      ],
+      "result": [
+       "came back",
+       "customer"
+      ]
+     },
+     "model": "This story is about the owner of a new coffee shop. Almost no one came in the first week. Then he gave free coffee to people at the bus stop. In the end, many of them came back as customers."
+    },
+    {
+     "id": "E33",
+     "passage": "Yumi forgot that her presentation was on Monday and spent the weekend relaxing. On Sunday night, she realized her mistake. She worked until two in the morning to finish the slides. The presentation went well, but she promised herself to check her calendar more often.",
+     "keys": {
+      "person": [
+       "yumi"
+      ],
+      "problem": [
+       "forgot"
+      ],
+      "action": [
+       "worked",
+       "finish",
+       "slides",
+       "two in the morning",
+       "late"
+      ],
+      "result": [
+       "went well",
+       "calendar",
+       "promise"
+      ]
+     },
+     "model": "This story is about Yumi. She forgot her presentation was on Monday. Then she worked until two in the morning to finish the slides. In the end, it went well, and she promised to check her calendar more."
+    },
+    {
+     "id": "E34",
+     "passage": "A boy named Sam wanted a new bike, but his parents said it was too expensive. He started washing cars in his neighborhood on weekends. After four months, he had saved enough money and bought the bike himself.",
+     "keys": {
+      "person": [
+       "sam",
+       "boy"
+      ],
+      "problem": [
+       "expensive"
+      ],
+      "action": [
+       "wash",
+       "car"
+      ],
+      "result": [
+       "bought",
+       "saved",
+       "buy"
+      ]
+     },
+     "model": "This story is about Sam. He wanted a new bike, but it was too expensive. Then he washed cars on weekends to save money. In the end, he bought the bike himself."
+    },
+    {
+     "id": "E35",
+     "passage": "Lena's computer crashed the day before an important deadline. She went to the library and used a public computer. She finished her work just before the library closed and sent it on time.",
+     "keys": {
+      "person": [
+       "lena"
+      ],
+      "problem": [
+       "crash",
+       "broke"
+      ],
+      "action": [
+       "library",
+       "public computer"
+      ],
+      "result": [
+       "on time",
+       "finished",
+       "sent"
+      ]
+     },
+     "model": "This story is about Lena. Her computer crashed the day before a deadline. Then she used a public computer at the library. In the end, she finished and sent her work on time."
+    },
+    {
+     "id": "E36",
+     "passage": "A soccer coach noticed that his players were often tired during games. He asked about their sleep and found that most went to bed after midnight. He made a team rule to sleep by eleven, and the team started winning more games.",
+     "keys": {
+      "person": [
+       "coach",
+       "team",
+       "player"
+      ],
+      "problem": [
+       "tired"
+      ],
+      "action": [
+       "sleep",
+       "rule",
+       "eleven",
+       "bed"
+      ],
+      "result": [
+       "win",
+       "won"
+      ]
+     },
+     "model": "This story is about a soccer coach. His players were often tired during games. Then he made a rule that they had to sleep by eleven. In the end, the team started winning more games."
+    },
+    {
+     "id": "E37",
+     "passage": "Mike booked a table at a popular restaurant for his wedding anniversary. When they arrived, the restaurant had lost the reservation. The manager apologized and set up a special table on the terrace. Mike and his wife said it was the most romantic dinner they'd ever had.",
+     "keys": {
+      "person": [
+       "mike"
+      ],
+      "problem": [
+       "reservation",
+       "lost"
+      ],
+      "action": [
+       "terrace",
+       "special table",
+       "manager"
+      ],
+      "result": [
+       "romantic",
+       "best"
+      ]
+     },
+     "model": "This story is about Mike. The restaurant lost his anniversary reservation. Then the manager set up a special table on the terrace. In the end, it was the most romantic dinner they had ever had."
+    },
+    {
+     "id": "E38",
+     "passage": "An elderly woman wanted to video call her grandchildren, but she didn't know how to use a smartphone. Her neighbor's teenage son offered to teach her. After a few lessons, she was calling her grandchildren every Sunday.",
+     "keys": {
+      "person": [
+       "woman",
+       "grandmother",
+       "grandma"
+      ],
+      "problem": [
+       "smartphone",
+       "didn't know",
+       "did not know"
+      ],
+      "action": [
+       "teach",
+       "lesson",
+       "son",
+       "neighbor"
+      ],
+      "result": [
+       "calling",
+       "every sunday",
+       "call"
+      ]
+     },
+     "model": "This story is about an elderly woman. She didn't know how to use a smartphone to call her grandchildren. Then her neighbor's son taught her. In the end, she called her grandchildren every Sunday."
+    },
+    {
+     "id": "E39",
+     "passage": "Kevin's company decided to stop paying for overtime, and many employees were angry. Kevin suggested ending meetings earlier and cutting reports that nobody read. The team worked fewer hours and still reached their goals.",
+     "keys": {
+      "person": [
+       "kevin"
+      ],
+      "problem": [
+       "overtime",
+       "angry"
+      ],
+      "action": [
+       "meeting",
+       "report",
+       "suggest"
+      ],
+      "result": [
+       "fewer hours",
+       "goal",
+       "reached"
+      ]
+     },
+     "model": "This story is about Kevin. His company stopped paying for overtime, and people were angry. Then he suggested shorter meetings and fewer reports. In the end, the team worked less and still reached their goals."
+    },
+    {
+     "id": "E40",
+     "passage": "Aya was running for her bus when she tripped and dropped her bag. The bus left without her. A woman nearby helped her pick up her things and offered her a ride. They talked during the drive and became good friends.",
+     "keys": {
+      "person": [
+       "aya"
+      ],
+      "problem": [
+       "trip",
+       "bus",
+       "dropped",
+       "miss"
+      ],
+      "action": [
+       "helped",
+       "ride",
+       "woman"
+      ],
+      "result": [
+       "friend"
+      ]
+     },
+     "model": "This story is about Aya. She tripped, dropped her bag, and missed her bus. Then a woman helped her and gave her a ride. In the end, they became good friends."
+    },
+    {
+     "id": "E41",
+     "passage": "A small town's summer festival was almost canceled because there weren't enough volunteers. A high school teacher asked her students to help. Fifty students joined, and the festival was the biggest one in years.",
+     "keys": {
+      "person": [
+       "teacher",
+       "town",
+       "festival"
+      ],
+      "problem": [
+       "volunteer",
+       "cancel"
+      ],
+      "action": [
+       "student",
+       "asked"
+      ],
+      "result": [
+       "biggest",
+       "fifty",
+       "big"
+      ]
+     },
+     "model": "This story is about a teacher in a small town. The festival was almost canceled because there weren't enough volunteers. Then she asked her students to help. In the end, fifty students joined, and it was the biggest festival in years."
     }
    ]
   },
@@ -1636,6 +3040,106 @@
      "id": "F21",
      "q": "Should cities build more bicycle lanes? Why or why not?",
      "model": "I think more bicycle lanes are better, for two reasons. First, cycling is good for people's health. For example, people can get exercise on their way to work. Second, it reduces traffic and pollution. So overall, I prefer more bicycle lanes."
+    },
+    {
+     "id": "F22",
+     "q": "Is it better to have a pet or not to have one? Why?",
+     "model": "I think having a pet is better, for two reasons. First, a pet makes your home less lonely. For example, a dog is always happy to see you after work. Second, taking care of a pet teaches responsibility. So overall, I prefer having a pet."
+    },
+    {
+     "id": "F23",
+     "q": "Should employees be allowed to wear casual clothes at work? Why or why not?",
+     "model": "I think casual clothes at work are better, for two reasons. First, people feel more comfortable and relaxed. For example, they can move easily during a busy day. Second, it saves money on suits. So overall, I prefer casual clothes at work."
+    },
+    {
+     "id": "F24",
+     "q": "Do you prefer shopping online or in stores? Why?",
+     "model": "I think shopping online is better, for two reasons. First, it saves time. For example, I can order things during my lunch break. Second, it's easy to compare prices. So overall, I prefer shopping online."
+    },
+    {
+     "id": "F25",
+     "q": "Is it better to live alone or with roommates? Why?",
+     "model": "I think living alone is better, for two reasons. First, I can relax in my own space. For example, I can sleep and eat whenever I want. Second, there are no arguments about cleaning. So overall, I prefer living alone."
+    },
+    {
+     "id": "F26",
+     "q": "Is it better to plan a trip carefully or to travel without a plan? Why?",
+     "model": "I think planning a trip carefully is better, for two reasons. First, I can avoid problems. For example, I won't miss the last train. Second, I can see more places in a short time. So overall, I prefer planning carefully."
+    },
+    {
+     "id": "F27",
+     "q": "Should companies give employees a four-day work week? Why or why not?",
+     "model": "I think a four-day work week is better, for two reasons. First, employees get more time to rest. For example, they can spend a long weekend with their family. Second, rested people work more efficiently. So overall, I prefer a four-day work week."
+    },
+    {
+     "id": "F28",
+     "q": "Do you prefer watching movies at home or at a movie theater? Why?",
+     "model": "I think watching movies at a theater is better, for two reasons. First, the big screen and sound are exciting. For example, action movies feel much more real. Second, there are no distractions like my phone. So overall, I prefer movie theaters."
+    },
+    {
+     "id": "F29",
+     "q": "Is it better to save money or to spend it on experiences? Why?",
+     "model": "I think spending money on experiences is better, for two reasons. First, experiences make good memories. For example, I still remember a trip I took five years ago. Second, they help me grow as a person. So overall, I prefer spending on experiences."
+    },
+    {
+     "id": "F30",
+     "q": "Should students have homework every day? Why or why not?",
+     "model": "I think daily homework is not a good idea, for two reasons. First, students need time to rest. For example, they can play sports or read for fun. Second, too much homework can make them dislike studying. So overall, I prefer less homework."
+    },
+    {
+     "id": "F31",
+     "q": "Is it better to drive your own car or to use public transportation? Why?",
+     "model": "I think public transportation is better, for two reasons. First, it's cheaper than owning a car. For example, I don't have to pay for gas or parking. Second, I can read or rest on the train. So overall, I prefer public transportation."
+    },
+    {
+     "id": "F32",
+     "q": "Do you prefer summer or winter? Why?",
+     "model": "I think summer is better, for two reasons. First, there are more outdoor activities. For example, I can go to the beach or have barbecues. Second, the days are longer, so I have more energy. So overall, I prefer summer."
+    },
+    {
+     "id": "F33",
+     "q": "Should people be allowed to use their phones during meetings? Why or why not?",
+     "model": "I think phones should not be used in meetings, for two reasons. First, people stop listening. For example, someone checking email might miss an important decision. Second, it's rude to the speaker. So overall, I prefer meetings without phones."
+    },
+    {
+     "id": "F34",
+     "q": "Is it better to learn a new skill from a teacher or by yourself online? Why?",
+     "model": "I think learning from a teacher is better, for two reasons. First, a teacher can correct my mistakes right away. For example, a coach can fix my form immediately. Second, it's easier to stay motivated. So overall, I prefer learning from a teacher."
+    },
+    {
+     "id": "F35",
+     "q": "Is it better to have many friends or a few close friends? Why?",
+     "model": "I think having a few close friends is better, for two reasons. First, I can trust them more. For example, I can talk to them about serious problems. Second, I can spend more time with each of them. So overall, I prefer a few close friends."
+    },
+    {
+     "id": "F36",
+     "q": "Should restaurants show the calories of each dish on their menus? Why or why not?",
+     "model": "I think showing calories is better, for two reasons. First, people can make healthier choices. For example, someone on a diet can pick a lighter meal. Second, it helps people understand what they eat. So overall, I prefer menus with calories."
+    },
+    {
+     "id": "F37",
+     "q": "Is it better to start work early in the morning or later in the day? Why?",
+     "model": "I think starting work early is better, for two reasons. First, I can focus better in the morning. For example, I finish difficult tasks before lunch. Second, I have more free time in the evening. So overall, I prefer starting early."
+    },
+    {
+     "id": "F38",
+     "q": "Should cars be banned from city centers? Why or why not?",
+     "model": "I think banning cars from city centers is better, for two reasons. First, the air would be cleaner. For example, people could walk without breathing exhaust fumes. Second, the streets would be safer for children. So overall, I prefer city centers without cars."
+    },
+    {
+     "id": "F39",
+     "q": "Is it better to live near your workplace or farther away in a quieter area? Why?",
+     "model": "I think living near my workplace is better, for two reasons. First, I save a lot of time. For example, I can walk to work in ten minutes. Second, I have more energy after work. So overall, I prefer living near my workplace."
+    },
+    {
+     "id": "F40",
+     "q": "Do you prefer working in a team or working alone? Why?",
+     "model": "I think working in a team is better, for two reasons. First, we can share ideas. For example, a teammate might find a better solution. Second, the work is more fun with other people. So overall, I prefer working in a team."
+    },
+    {
+     "id": "F41",
+     "q": "Should people take a gap year before starting university or a job? Why or why not?",
+     "model": "I think taking a gap year is better, for two reasons. First, people can learn what they really want to do. For example, they can try volunteer work. Second, travel teaches independence. So overall, I prefer taking a gap year."
     }
    ]
   }
