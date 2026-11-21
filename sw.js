@@ -1,6 +1,6 @@
 // Network first so updates show up right away; the cache is only for offline use.
-const CACHE = "shadowing-v21";
-const FILES = ["./", "index.html", "app.js", "coach.js", "versant.js", "versant.json", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
+const CACHE = "shadowing-v22";
+const FILES = ["./", "index.html", "app.js", "coach.js", "gen.js", "versant.js", "versant.json", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

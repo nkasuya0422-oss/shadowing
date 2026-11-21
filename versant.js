@@ -85,15 +85,61 @@ const VS = (() => {
     return {rows, hit, total: rows.length, pct: rows.length ? Math.round(hit / rows.length * 100) : 0};
   }
 
+
+  /* Part B: explain what went missing, by kind of word (for Japanese learners these are the usual
+     suspects: articles, prepositions, auxiliaries, endings and tense) */
+  const W_ART = new Set(["a","an","the"]);
+  const W_PREP = new Set(["to","in","on","at","for","of","with","from","by","about","into","before","after","since","until","during","over","under","near","through","than"]);
+  const W_AUX = new Set(["is","are","was","were","am","be","been","being","has","have","had","will","would","can","could","should","do","does","did","must","might","may"]);
+  const W_PRON = new Set(["i","you","he","she","it","we","they","me","him","her","us","them","my","your","his","its","our","their"]);
+  const W_CONJ = new Set(["and","but","or","so","because","although","if","when","while","though","even","that"]);
+  const IRREG = {went:"go",came:"come",left:"leave",took:"take",got:"get",had:"have",made:"make",said:"say",found:"find",bought:"buy",thought:"think",
+    told:"tell",ran:"run",saw:"see",gave:"give",knew:"know",wrote:"write",forgot:"forget",began:"begin",spent:"spend",sent:"send",felt:"feel",kept:"keep",
+    lost:"lose",met:"meet",paid:"pay",sold:"sell",stood:"stand",woke:"wake",wore:"wear",won:"win",drove:"drive",ate:"eat",drank:"drink",broke:"break",
+    chose:"choose",fell:"fall",flew:"fly",grew:"grow",heard:"hear",held:"hold",meant:"mean",was:"is",were:"are",did:"do",has:"have",been:"be"};
+  const base = w => IRREG[w] || (w.length <= 3 ? w : w.replace(/'s$/, "").replace(/(ies)$/, "y").replace(/(ing|ed|es|s)$/, "").replace(/e$/, ""));
+  function explainB(d){
+    const missed = d.words.filter(w => !w.ok).map(w => tok(w.w).join(" ")).filter(Boolean);
+    const extra = d.extra.slice();
+    const cats = {}, put = (k, w) => (cats[k] = cats[k] || []).push(w);
+    missed.forEach(w => {
+      const k = extra.findIndex(e => e !== w && base(e) === base(w));
+      if (k >= 0){
+        const e = extra.splice(k, 1)[0];
+        put(IRREG[w] || IRREG[e] ? "時制・形が違う" : "語尾（-s / -ed / -ing）が違う", `${w} → ${e}`);
+        return;
+      }
+      if (w.includes("'")) put("短縮形（I'm / didn't など）", w);
+      else if (W_ART.has(w)) put("冠詞（a / an / the）", w);
+      else if (W_PREP.has(w)) put("前置詞（to / at / for など）", w);
+      else if (W_AUX.has(w)) put("be動詞・助動詞", w);
+      else if (W_PRON.has(w)) put("代名詞", w);
+      else if (W_CONJ.has(w)) put("接続詞（because / although など）", w);
+      else put("内容語（名詞・動詞・形容詞）", w);
+    });
+    if (extra.length) cats["違う語・余計な語"] = extra;
+    return cats;
+  }
+  /* self-corrections: the same word twice in a row ("I I"), or a repeated two-word phrase ("I went I went") */
+  function restarts(said){
+    const t = tok(said).filter(w => !FILLERS.has(w));
+    let n = 0;
+    for (let i = 0; i < t.length - 1; i++){
+      if (t[i] === t[i + 1] && !["that","had","very","so"].includes(t[i])){ n++; continue; }
+      if (i < t.length - 3 && t[i] === t[i + 2] && t[i + 1] === t[i + 3]){ n++; i += 1; }
+    }
+    return n;
+  }
+
   function speechStats(said, onset, lastVoice, pauses, elapsed){
     const all = tok(said);
     const fillers = all.filter(w => FILLERS.has(w)).length;
     const words = all.length - fillers;
     const span = onset != null && lastVoice != null ? Math.max(0.5, lastVoice - onset) : (words && elapsed ? elapsed : null);
-    return {words, fillers, wpm: span ? Math.round(words / (span / 60)) : null, latency: onset, pauses};
+    return {words, fillers, restarts: restarts(said), wpm: span ? Math.round(words / (span / 60)) : null, latency: onset, pauses};
   }
 
-  return {tok, diffWords, checkAnswer, retellChecklist, opinionChecklist, topicWords, topicCoverage, speechStats, FILLERS};
+  return {tok, diffWords, checkAnswer, retellChecklist, opinionChecklist, topicWords, topicCoverage, speechStats, explainB, restarts, FILLERS};
 })();
 if (typeof module !== "undefined" && module.exports){ module.exports = VS; }
 
@@ -101,7 +147,7 @@ if (typeof module !== "undefined" && module.exports){ module.exports = VS; }
 if (typeof window !== "undefined") (function(){
   const ORDER = ["A","B","C","D","E","F"];
   const PRIORITY = new Set(["B","E","F"]);
-  const VOICE = {N: "en-US-JennyNeural", M: "en-US-AndrewMultilingualNeural", W: "en-US-AvaMultilingualNeural"};
+  const VOICE = {N: "en-US-JennyNeural", M: "en-US-AndrewMultilingualNeural", W: "en-US-AvaMultilingualNeural", M2: "en-US-BrianMultilingualNeural", W2: "en-US-EmmaMultilingualNeural"};
   const SHORT = new Set(["A","B","C","D"]);
   const E_LABEL = {person: "人物", problem: "問題", action: "行動", result: "結果"};
   const F_LABEL = {stance: "立場（I think … is better）", first: "理由1（First, …）", example: "例（For example, …）", second: "理由2（Second, …）", conclusion: "まとめ（So overall, …）"};
@@ -140,9 +186,14 @@ if (typeof window !== "undefined") (function(){
         <div class="sub">全40問（A8・B16・C6・D6・E2・F2）を本番どおり通しで出題します。約17分。戻る・聞き直しはできず、6秒話さないと次の問題へ進みます。結果は最後にまとめて表示します。</div>
         <button class="btn" id="vMockBtn">模擬テストを始める</button>
         <div id="vMockHist"></div></div>
+      <div class="card"><label>パート別練習の出題</label>
+        <div class="seg" id="vSrc"><button data-s="gen">自動生成（毎回新しい）</button><button data-s="bank">問題バンクから</button></div></div>
       <div class="vparts" id="vParts">読み込み中…</div>`;
     try { await loadBank(); } catch(e){ $("vParts").textContent = "問題データを読み込めませんでした。通信を確認して開き直してください。"; return; }
     $("vMockBtn").addEventListener("click", mockIntro);
+    const paintSrc = () => document.querySelectorAll("#vSrc button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.s === practiceSrc())));
+    document.querySelectorAll("#vSrc button").forEach(b => b.addEventListener("click", () => { store.set("v-src", b.dataset.s); paintSrc(); }));
+    paintSrc();
     renderMockHist();
     const box = $("vParts"); box.innerHTML = "";
     ORDER.forEach(p => {
@@ -150,17 +201,47 @@ if (typeof window !== "undefined") (function(){
       const b = document.createElement("button"); b.className = "vpart" + (PRIORITY.has(p) ? " pri" : "");
       b.innerHTML = `<span class="vl">${p}</span><span class="vt"><b></b><span class="sub"></span><span class="sub vs"></span></span>${PRIORITY.has(p) ? '<span class="chip">優先</span>' : ""}`;
       b.querySelector("b").textContent = P.name;
-      b.querySelector(".sub").textContent = `本番 ${P.count}問・回答 ${P.time}秒・収録 ${P.items.length}問`;
+      b.querySelector(".sub").textContent = `本番 ${P.count}問・回答 ${P.time}秒・収録 ${P.items.length}問＋自動生成`;
       b.querySelector(".vs").textContent = partSummary(p);
       b.addEventListener("click", () => openPart(p));
       box.appendChild(b);
     });
   }
 
+  /* ---------- seen history (30 days) and a cache of generated items for later review ---------- */
+  const SEEN_DAYS = 30;
+  function seenMap(){
+    const m = store.get("v-seen", {}), cut = Date.now() - SEEN_DAYS * 864e5;
+    let changed = false;
+    for (const k in m) if (m[k] < cut){ delete m[k]; changed = true; }
+    if (changed) store.set("v-seen", m);
+    return m;
+  }
+  function markSeen(list){
+    const m = seenMap(), now = Date.now(), cache = store.get("v-gencache", {});
+    list.forEach(({p, it}) => {
+      m[it.seenKey || it.id] = now;
+      if (it.generated){ cache[it.id] = {p, it, t: now}; }
+    });
+    const ids = Object.keys(cache);
+    if (ids.length > 300) ids.sort((a, b) => cache[a].t - cache[b].t).slice(0, ids.length - 300).forEach(k => delete cache[k]);
+    store.set("v-seen", m); store.set("v-gencache", cache);
+  }
+  const practiceSrc = () => store.get("v-src", "gen");
+
   /* ---------- question screen ---------- */
   /* random order without repeats: each part keeps a shuffled deck of item ids; when it runs out
      (or new questions are added) it is reshuffled, never starting with the item just answered */
   function nextItem(p){
+    if (practiceSrc() === "gen" && window.VGen){
+      const recent = store.get("v-recent-" + p, []);
+      const it = VGen.one(p, seenMap(), recent);
+      if (it){
+        markSeen([{p, it}]);
+        store.set("v-recent-" + p, [it.tpl, ...recent].slice(0, p === "B" ? 8 : 3));
+        return {it, n: "自動生成", total: null};
+      }
+    }
     const P = bank.parts[p], k = "v-deck-" + p, ids = P.items.map(x => x.id);
     let d = store.get(k, null);
     if (!d || !Array.isArray(d.order) || d.order.length !== ids.length || d.order.some(id => !ids.includes(id)) || d.pos >= d.order.length){
@@ -180,7 +261,7 @@ if (typeof window !== "undefined") (function(){
     const P = bank.parts[part];
     $("vHome").hidden = true; const q = $("vQ"); q.hidden = false;
     q.innerHTML = `<div class="card">
-        <div class="row" style="justify-content:space-between"><button class="btn ghost small" id="vBack">← パート一覧</button><span class="chip">Part ${part}・${n}/${total}</span></div>
+        <div class="row" style="justify-content:space-between"><button class="btn ghost small" id="vBack">← パート一覧</button><span class="chip">Part ${part}・${total ? `${n}/${total}` : n}</span></div>
         <h2>${esc(P.name)}<span class="sub">（${esc(P.en)}）</span></h2>
         <div class="sub">${hint(part)}</div>
         ${TEMPLATE[part] ? `<div class="vtpl"><b>型</b>${esc(TEMPLATE[part])}</div>` : ""}
@@ -227,6 +308,8 @@ if (typeof window !== "undefined") (function(){
   function deviceVoiceFor(v){
     const en = (synth ? synth.getVoices() : []).filter(x => /^en[-_]US/i.test(x.lang));
     const pick = re => en.find(x => re.test(x.name));
+    if (v === "M2") return pick(/(Daniel|Tom|Nathan|Evan|Fred)/) || en[2] || en[0];
+    if (v === "W2") return pick(/(Allison|Susan|Zoe|Nicky|Karen)/) || en[3] || en[0];
     if (v === "M") return pick(/(Aaron|Alex|Evan|Nathan|Tom|Daniel|Guy|Google US English Male)/) || en[1] || en[0];
     if (v === "W") return pick(/(Samantha|Ava|Allison|Susan|Zoe|Nicky|Jenny|Aria)/) || en[0];
     return pick(/(Samantha|Ava|Allison|Jenny|Google US English)/) || en[0];
@@ -418,16 +501,23 @@ if (typeof window !== "undefined") (function(){
     const said = tr ? `${tr.lexical} ${tr.display}` : "";
     const lex = tr ? tr.lexical : "";
     const stats = VS.speechStats(lex, r.onset, r.lastVoice, r.pauses, r.elapsed);
-    let score = null, judge = "";
+    let score = null, judge = "", bx = null;
     if (tr){
       if (p === "B"){
-        const d = VS.diffWords(it.text, lex); score = d.pct;
+        const d = VS.diffWords(it.text, lex); score = d.pct; bx = VS.explainB(d);
         judge = `<div class="score"><span class="big">${d.pct}%</span><span class="sub">${d.total}語中 ${d.hit}語 一致</span></div>
           <p class="vdiff">${d.words.map(w => `<span class="w ${w.ok ? "ok" : "ng"}">${esc(w.w)}</span>`).join(" ")}</p>
-          ${d.extra.length ? `<div class="sub">違う語・余計な語：${esc(d.extra.join(", "))}</div>` : ""}`;
+          ${Object.keys(bx).length ? `<ul class="finds">${Object.entries(bx).map(([k, v]) => `<li class="warn" style="display:grid"><span class="ic">△</span><span><b>${esc(k)}</b>：${esc(v.join(", "))}</span></li>`).join("")}</ul>` : ""}`;
       } else if (p === "A" || p === "C" || p === "D"){
         const ok = VS.checkAnswer(said, it.accept); score = ok ? 100 : 0;
-        judge = `<div class="score"><span class="big" style="color:var(${ok ? "--hit" : "--miss"})">${ok ? "○" : "×"}</span><span class="sub">${ok ? "正解の語が含まれています" : "正解の語が聞き取れませんでした"}（自動判定・目安）</span></div>`;
+        const nums = VS.tok(said).filter(w => /^\d+$/.test(w) || ["one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","fifteen","twenty","thirty","forty","fifty","sixty"].includes(w));
+        const why = ok ? "" : !lex.trim() ? "回答が聞き取れませんでした。短くてもいいので答えを言い切りましょう。"
+          : nums.length && it.accept.some(a => /\d|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty/.test(a)) ? `数字が違います（あなた：${nums.join(" ")}）。${it.explain ? "計算：" + it.explain : "数字は最後に言われたものが答えになることが多いです。"}`
+          : p === "C" ? "会話の途中で予定や答えが変わっています。最後に決まったことを答えましょう。"
+          : p === "D" ? "質問の疑問詞（who / why / how many / what happened）に合う部分を答えましょう。"
+          : "質問の最後の部分（A or B のどちらか）をよく聞いて答えましょう。";
+        judge = `<div class="score"><span class="big" style="color:var(${ok ? "--hit" : "--miss"})">${ok ? "○" : "×"}</span><span class="sub">${ok ? "正解の語が含まれています" : "正解の語が聞き取れませんでした"}（自動判定・目安）</span></div>
+          <div class="vbox"><b>正解：</b>${esc(it.model || it.accept[0])}${it.explain && ok ? `（${esc(it.explain)}）` : ""}${why ? `<div class="sub" style="margin-top:4px">${esc(why)}</div>` : ""}</div>`;
       } else if (p === "E"){
         const c = VS.retellChecklist(said, it.keys); const n = Object.values(c).filter(Boolean).length; score = n * 25;
         judge = `<div class="score"><span class="big">${n}/4</span><span class="sub">話の要素（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [E_LABEL[k] || k, v]));
@@ -442,7 +532,7 @@ if (typeof window !== "undefined") (function(){
           + checklist(Object.entries(c).map(([k, v]) => [F_LABEL[k] || k, v]));
       }
     }
-    return {score, judge, stats};
+    return {score, judge, stats, bx};
   }
   async function analyze(r, token){
     status("採点中…"); setFill(1);
@@ -466,7 +556,7 @@ if (typeof window !== "undefined") (function(){
     switch (p){
       case "A": return `<p>${esc(item_.q)}</p>`;
       case "B": return `<p>${esc(item_.text)}</p>`;
-      case "C": return item_.lines.map(l => `<p><b>${l.s === "M" ? "男性" : "女性"}：</b>${esc(l.t)}</p>`).join("") + `<p><b>質問：</b>${esc(item_.q)}</p>`;
+      case "C": return item_.lines.map(l => `<p><b>${{M: "男性", W: "女性", M2: "男性2", W2: "女性2"}[l.s] || l.s}：</b>${esc(l.t)}</p>`).join("") + `<p><b>質問：</b>${esc(item_.q)}</p>`;
       case "D": return `<p>${esc(item_.passage)}</p><p><b>質問：</b>${esc(item_.q)}</p>`;
       case "E": return `<p>${esc(item_.passage)}</p>`;
       case "F": return `<p>${esc(item_.q)}</p>`;
@@ -487,9 +577,10 @@ if (typeof window !== "undefined") (function(){
         ${long ? metric("語数", st.words, false) : ""}
         ${long ? metric("WPM", st.wpm == null ? "–" : st.wpm, st.wpm != null && (st.wpm < 90)) : ""}
         ${metric("フィラー", st.fillers + "回", st.fillers > 2)}
+        ${metric("言い直し", st.restarts + "回", st.restarts > 1)}
         ${metric("1秒以上の間", st.pauses + "回", st.pauses > (long ? 3 : 0))}
       </div>
-      <div class="sub">${long ? "WPMは1分あたりの語数（目安 110〜150）。" : ""}フィラー（um, uh など）は音声認識で消えることがあるので少なめに出ます。</div>
+      <div class="sub">${long ? "WPMは1分あたりの語数（目安 110〜150）。" : ""}フィラー（um, uh など）と言い直しは、音声認識で消えることがあるので少なめに出ます。</div>
       ${r.blob ? `<div class="field"><label>自分の録音</label><audio controls playsinline src="${URL.createObjectURL(r.blob)}"></audio></div>` : ""}
       <div class="field"><label>あなたの回答（文字起こし）</label><div class="vbox">${tr ? esc(tr.display || "（聞き取れませんでした）") : "–"}</div></div>
       <div class="field"><label>問題のスクリプト</label><div class="vlisten"></div><div class="vbox">${scriptHTML()}</div></div>
@@ -580,6 +671,122 @@ ${g}
     return wrap;
   }
 
+
+  /* ================= 問題セットの取り込み（JSON） ================= */
+  const IMPORT_PROMPT = `Versant English Speaking and Listening Test の模擬問題を、下のJSON形式で1セット作ってください。
+
+条件：
+- すべてオリジナルの問題（実際の試験問題は使わない）。難易度はCEFR B1〜B2、日常生活や仕事の身近な話題
+- 問題数：A 8問、B 16問、C 6問、D 合計6問、E 2問、F 2問
+- A：常識クイズと簡単な計算問題（お釣り・時間など）を混ぜる。answers は正解とみなすキーワード（数字は "four" と "4" の両方）
+- B：4〜16語の文。前半は短く、後半ほど長くし、Although / Even though / If などの複文を含める
+- C：2〜3人の短い会話のあとに質問1つ（最終的に決まった時間・場所・数・理由を問う）。speaker は M / W / M2 / W2
+- D：3〜5文の短い話。質問1問の話を3つと、質問3問が続く話を1つ（questions の数で表す）
+- E：4〜5文の話。points に「入れるべきポイント名: [判定キーワード]」を4つ（人物・きっかけ・行動・結果、数字があれば数字も）
+- F：Do you prefer A or B? / Should ...? の形の質問と、意見＋理由2つの模範解答
+- JSONだけを出力し、説明文やコードブロックの記号は付けない
+
+形式：
+{
+  "title": "セット名",
+  "items": [
+    {"part": "A", "q": "Which is heavier, a feather or a brick?", "answers": ["brick"], "model": "A brick."},
+    {"part": "B", "text": "Although it was raining, we still went for a walk."},
+    {"part": "C", "lines": [{"speaker": "M", "text": "Shall we meet at three?"}, {"speaker": "W", "text": "How about four?"}, {"speaker": "M", "text": "Four is fine."}],
+     "q": "What time will they meet?", "answers": ["four", "4"], "model": "At four."},
+    {"part": "D", "passage": "Ken wanted to learn to cook, but ...",
+     "questions": [{"q": "Who gave Ken advice?", "answers": ["sister"], "model": "His sister."}]},
+    {"part": "E", "passage": "Lisa's office was always messy ...",
+     "points": {"人物": ["lisa"], "きっかけ": ["contract", "hour"], "行動": ["five minutes", "clean"], "結果": ["tidy", "month"]},
+     "model": "This story is about Lisa. ..."},
+    {"part": "F", "q": "Do you prefer working from home or in an office? Why?", "model": "I prefer working from home, for two reasons. First, ... Second, ... That's why ..."}
+  ]
+}`;
+
+  function importSet(text){
+    const errors = [], warnings = [];
+    let j;
+    const raw = String(text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
+    if (!raw) return {ok: false, errors: ["貼り付け欄が空です。"]};
+    try { j = JSON.parse(raw); } catch(e){ return {ok: false, errors: ["JSONとして読めませんでした（" + e.message + "）。Claudeの出力を最初の { から最後の } まで丸ごと貼ってください。"]}; }
+    const arr = Array.isArray(j) ? j : j && Array.isArray(j.items) ? j.items : null;
+    if (!arr) return {ok: false, errors: ["\"items\" の配列が見つかりません。"]};
+    const strs = x => Array.isArray(x) ? x.map(String).filter(Boolean) : typeof x === "string" ? [x] : [];
+    const out = [], stamp = Date.now().toString(36);
+    let n = 0;
+    const add = (p, it) => out.push(Object.assign({p, id: `I${stamp}-${p}${String(++n).padStart(2, "0")}`, imported: true}, it));
+    arr.forEach((x, i) => {
+      const at = `${i + 1}番目`;
+      const p = String(x && (x.part || x.p) || "").toUpperCase().replace(/^PART\s*/, "");
+      if (!"ABCDEF".includes(p) || p.length !== 1){ errors.push(`${at}：part が A〜F ではありません`); return; }
+      if (p === "A"){
+        if (!x.q || !strs(x.answers || x.accept).length){ errors.push(`${at}（A）：q と answers が必要です`); return; }
+        add("A", {q: String(x.q), accept: strs(x.answers || x.accept), model: String(x.model || strs(x.answers || x.accept)[0])});
+      } else if (p === "B"){
+        if (!x.text){ errors.push(`${at}（B）：text が必要です`); return; }
+        const w = String(x.text).split(/\s+/).length; if (w > 18) warnings.push(`Bに${w}語の長い文あり`);
+        add("B", {text: String(x.text)});
+      } else if (p === "C"){
+        const lines = Array.isArray(x.lines) ? x.lines : [];
+        if (lines.length < 2 || !x.q || !strs(x.answers || x.accept).length){ errors.push(`${at}（C）：lines（2つ以上）と q と answers が必要です`); return; }
+        const map = {}; let alt = 0; const order = ["M","W","M2","W2"];
+        add("C", {lines: lines.map(l => { let sp = String(l.speaker || l.s || "").toUpperCase(); if (!order.includes(sp)){ if (!(sp in map)) map[sp] = order[alt++ % 4]; sp = map[sp]; } return {s: sp, t: String(l.text || l.t || "")}; }),
+          q: String(x.q), accept: strs(x.answers || x.accept), model: String(x.model || strs(x.answers || x.accept)[0])});
+      } else if (p === "D"){
+        const qs = Array.isArray(x.questions) ? x.questions : x.q ? [{q: x.q, answers: x.answers || x.accept, model: x.model}] : [];
+        if (!x.passage || !qs.length){ errors.push(`${at}（D）：passage と questions が必要です`); return; }
+        qs.forEach((y, k) => {
+          if (!y.q || !strs(y.answers || y.accept).length){ errors.push(`${at}（D）の質問${k + 1}：q と answers が必要です`); return; }
+          add("D", {passage: String(x.passage), q: String(y.q), accept: strs(y.answers || y.accept), model: String(y.model || strs(y.answers || y.accept)[0]), samePassage: k > 0});
+        });
+      } else if (p === "E"){
+        if (!x.passage){ errors.push(`${at}（E）：passage が必要です`); return; }
+        let keys = x.points || x.keys;
+        if (!keys || typeof keys !== "object" || Array.isArray(keys) || !Object.keys(keys).length){ warnings.push("Eのpointsがないので名前だけで判定"); keys = {"人物": [String(x.passage).split(/\s+/)[0].replace(/[^A-Za-z]/g, "").toLowerCase()]}; }
+        add("E", {passage: String(x.passage), keys: Object.fromEntries(Object.entries(keys).map(([k, v]) => [k, strs(v).map(w => w.toLowerCase())])), model: String(x.model || "")});
+      } else if (p === "F"){
+        if (!x.q){ errors.push(`${at}（F）：q が必要です`); return; }
+        const it = {q: String(x.q), model: String(x.model || "")};
+        if (x.points && typeof x.points === "object" && !Array.isArray(x.points)) it.checks = Object.entries(x.points).map(([label, v]) => ({label, any: strs(v)}));
+        add("F", it);
+      }
+    });
+    if (errors.length) return {ok: false, errors};
+    if (!out.length) return {ok: false, errors: ["問題が1つもありませんでした。"]};
+    const title = String(j.title || "取り込んだセット").slice(0, 40);
+    return {ok: true, warnings: [...new Set(warnings)], set: {id: stamp, title, items: out, added: today(), done: false}};
+  }
+
+  /* imported items first (in their order), missing parts filled with generated questions */
+  function fillFromImport(imp){
+    const plan = {A: 8, B: 16, C: 6, D: 6, E: 2, F: 2}, out = [], seen = seenMap();
+    ["A","B","C","D","E","F"].forEach(p => {
+      const mine = imp.items.filter(x => x.p === p).map(it => ({p, it}));
+      mine.forEach(x => out.push(x));
+      const lack = plan[p] - mine.length;
+      if (lack > 0 && window.VGen) VGen.part(p, lack, seen).forEach(it => out.push({p, it}));
+    });
+    return out;
+  }
+
+  function renderImpList(){
+    const box = $("vImpList"); if (!box) return;
+    const list = store.get("v-imports", []);
+    box.innerHTML = list.length ? `<div class="sub" style="margin-top:6px">取り込んだセット</div>` : "";
+    list.forEach(x => {
+      const row = document.createElement("div"); row.className = "row";
+      row.innerHTML = `<button class="btn ghost small" data-a="go"${az() ? "" : " disabled"}></button><button class="btn ghost small" data-a="del">削除</button>`;
+      row.querySelector('[data-a="go"]').textContent = `${x.title}（${x.items.length}問${x.done ? "・受験済み" : ""}）で開始`;
+      row.querySelector('[data-a="go"]').addEventListener("click", () => startMock("imp:" + x.id));
+      let armed = false;
+      row.querySelector('[data-a="del"]').addEventListener("click", e => {
+        if (!armed){ armed = true; e.target.textContent = "もう一度押すと削除"; return; }
+        store.set("v-imports", store.get("v-imports", []).filter(y => y.id !== x.id)); renderImpList();
+      });
+      box.appendChild(row);
+    });
+  }
+
   /* ================= 本番模擬モード ================= */
   const PLAN = [["A",8],["B",16],["C",6],["D",6],["E",2],["F",2]];
   const INSTR = {
@@ -612,24 +819,57 @@ ${g}
         <li class="warn" style="display:grid"><span class="ic">4</span><span>結果は最後にまとめて表示します（採点はテスト中に裏で進めます）。</span></li>
       </ul>
       ${az() ? "" : `<div class="err">設定タブでAzureのキーを入れてから始めてください（読み上げと採点に使います）。</div>`}
-      <div class="row">
-        <button class="btn" id="vMockGo"${az() ? "" : " disabled"}>ランダム出題で開始</button>
+      <div class="vstart">
+        <button class="btn" id="vMockGen"${az() ? "" : " disabled"}>新しい問題で開始（自動生成）</button>
+        <div class="sub">毎回テンプレートから新しく作ります。過去30日に出た問題は出しません。</div>
+        <button class="btn ghost" id="vMockGo"${az() ? "" : " disabled"}>問題バンクからランダム</button>
         ${bank.sets && bank.sets.first ? `<button class="btn ghost" id="vMockSet"${az() ? "" : " disabled"}>${esc(bank.sets.first.name)}で開始${store.get("v-set-done-first", false) ? "（受験済み）" : ""}</button>` : ""}
-      </div>
-      <div class="sub">「${bank.sets && bank.sets.first ? esc(bank.sets.first.name) : ""}」はパート別練習には出てこない、決まった40問です。初見の力を試すのに使ってください。</div></div>`;
+        <div id="vImpList"></div>
+      </div></div>
+      <div class="card"><h2>問題セットを取り込む</h2>
+        <div class="sub">Claudeのチャットで作った問題セット（JSON）を貼り付けて、模擬テストに使えます。足りないパートは自動生成で埋めて40問にします。</div>
+        <details class="vprompt"><summary>Claudeに作らせる依頼文を見る</summary><pre id="vPromptText"></pre><div class="row"><button class="btn ghost small" id="vPromptCopy">依頼文をコピー</button><span class="sub" id="vPromptMsg"></span></div></details>
+        <textarea id="vImpText" placeholder='{"title": "...", "items": [ ... ]}'></textarea>
+        <div class="row"><button class="btn ghost" id="vImpBtn">取り込む</button></div>
+        <div id="vImpMsg"></div></div>`;
     $("vBack").addEventListener("click", renderHome);
+    $("vMockGen").addEventListener("click", () => startMock("gen"));
     $("vMockGo").addEventListener("click", () => startMock(null));
     if ($("vMockSet")) $("vMockSet").addEventListener("click", () => startMock("first"));
+    $("vPromptText").textContent = IMPORT_PROMPT;
+    $("vPromptCopy").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(IMPORT_PROMPT); $("vPromptMsg").textContent = "コピーしました。Claudeのチャットに貼ってください。"; }
+      catch(e){ $("vPromptMsg").textContent = "コピーできませんでした。上の文を長押しして選択してください。"; }
+    });
+    $("vImpBtn").addEventListener("click", () => {
+      const r = importSet($("vImpText").value);
+      const box = $("vImpMsg");
+      if (!r.ok){ box.innerHTML = `<div class="err">取り込めませんでした：</div><ul class="finds">${r.errors.slice(0, 8).map(e => `<li class="ng" style="display:grid"><span class="ic">✗</span><span>${esc(e)}</span></li>`).join("")}</ul>`; return; }
+      const list = store.get("v-imports", []); list.unshift(r.set); store.set("v-imports", list.slice(0, 10));
+      box.innerHTML = `<div class="okmsg">「${esc(r.set.title)}」を取り込みました（${r.set.items.length}問${r.warnings.length ? "・" + esc(r.warnings.join(" / ")) : ""}）。上のボタンから開始できます。</div>`;
+      $("vImpText").value = ""; renderImpList();
+    });
+    renderImpList();
   }
 
-  async function startMock(setKey){
+  async function startMock(source){
+    const setKey = source && bank.sets && bank.sets[source] ? source : null;
     cancel();
     const token = run;
     setAudioSession("play-and-record"); unlockAudio();
     const list = [];
-    if (setKey && bank.sets && bank.sets[setKey]) bank.sets[setKey].items.forEach(it => list.push({p: it.p, it}));
+    let impId = null;
+    if (setKey) bank.sets[setKey].items.forEach(it => list.push({p: it.p, it}));
+    else if (source === "gen") VGen.buildTest(seenMap()).forEach(x => list.push(x));
+    else if (source && source.startsWith("imp:")){
+      impId = source.slice(4);
+      const imp = store.get("v-imports", []).find(x => x.id === impId);
+      if (imp) fillFromImport(imp).forEach(x => list.push(x));
+    }
     else (window.__vPlan || PLAN).forEach(([p, n]) => shuffle(bank.parts[p].items).slice(0, n).forEach(it => list.push({p, it})));
-    mock = {list, results: [], token, done: 0, queue: Promise.resolve(), set: setKey && bank.sets[setKey] ? setKey : null};
+    if (window.__vPlan && source === "gen"){ const keep = {}; window.__vPlan.forEach(([p, n]) => keep[p] = n); const c = {}; for (let i = list.length - 1; i >= 0; i--){ const p = list[i].p; c[p] = (c[p] || 0) + 1; } const seenC = {}; const trimmed = list.filter(x => (seenC[x.p] = (seenC[x.p] || 0) + 1) <= (keep[x.p] || 0)); list.length = 0; trimmed.forEach(x => list.push(x)); }
+    markSeen(list);
+    mock = {list, results: [], token, done: 0, queue: Promise.resolve(), set: setKey, imp: impId, gen: source === "gen"};
     state = "mock";
     $("vQ").innerHTML = `<div class="card vstage">
         <div class="row" style="justify-content:space-between"><span class="chip" id="vMPart">準備中</span><span class="sub" id="vMNum"></span></div>
@@ -706,6 +946,11 @@ ${g}
     store.set("v-hist", h.slice(0, 800));
     const summary = summarize(res);
     if (mock.set){ summary.set = bank.sets[mock.set].name; store.set("v-set-done-" + mock.set, true); }
+    if (mock.gen) summary.set = "自動生成";
+    if (mock.imp){
+      const imps = store.get("v-imports", []), x = imps.find(y => y.id === mock.imp);
+      if (x){ summary.set = x.title; x.done = true; store.set("v-imports", imps); }
+    }
     const mh = store.get("v-mock", []); mh.unshift(summary); store.set("v-mock", mh.slice(0, 30));
     renderMockResult(res, summary);
   }
@@ -723,8 +968,18 @@ ${g}
         lat: lat.length ? +(lat.reduce((a, b) => a + b, 0) / lat.length).toFixed(1) : null,
         wpm: wpm.length ? Math.round(wpm.reduce((a, b) => a + b, 0) / wpm.length) : null};
     });
+    const cats = {}, words = {};
+    res.forEach(e => { if (!e.bx) return; Object.entries(e.bx).forEach(([k, v]) => {
+      if (k === "違う語・余計な語") return;
+      cats[k] = (cats[k] || 0) + v.length;
+      v.forEach(w => { const key = w.split(" → ")[0]; words[key] = (words[key] || 0) + 1; });
+    }); });
+    const patterns = {cats: Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 6),
+      words: Object.entries(words).sort((a, b) => b[1] - a[1]).slice(0, 10),
+      fillers: res.reduce((n, e) => n + (e.stats ? e.stats.fillers : 0), 0),
+      restarts: res.reduce((n, e) => n + (e.stats ? e.stats.restarts || 0 : 0), 0)};
     const lat = res.map(e => e.r.onset).filter(x => typeof x === "number");
-    return {date: new Date().toLocaleString("ja-JP", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"}), parts,
+    return {patterns, date: new Date().toLocaleString("ja-JP", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"}), parts,
       noAnswer: res.filter(e => e.r.why === "noanswer").length,
       lat: lat.length ? +(lat.reduce((a, b) => a + b, 0) / lat.length).toFixed(1) : null};
   }
@@ -745,7 +1000,24 @@ ${g}
       </div>
       <div class="vtable"><table><thead><tr><th>パート</th><th>結果</th><th>話し始め</th><th>無回答</th><th>WPM</th></tr></thead>
       <tbody>${["A","B","C","D","E","F"].map(row).join("")}</tbody></table></div>
+      ${patternsHTML(sm.patterns)}
       <div class="sub">結果はこのアプリの自動判定による目安で、本番のスコアとは別物です。60%未満のパートは色付きで表示しています。</div>`;
+  }
+  function patternsHTML(pt){
+    if (!pt) return "";
+    const tips = {"冠詞（a / an / the）": "a / the は弱く短く読まれて聞き逃しやすい音です。名詞の前に何かあったか意識しましょう。",
+      "前置詞（to / at / for など）": "to / at / for は「タ」「アッ」「ファ」のように弱くなります。動詞とつなげて覚えましょう（go to → ゴウタ）。",
+      "語尾（-s / -ed / -ing）が違う": "語尾の s・ed は小さな音です。主語と時制から語尾を予想しながら聞きましょう。",
+      "時制・形が違う": "過去の話か今の話かを先に押さえると、went / go のような形の違いを落としにくくなります。",
+      "be動詞・助動詞": "is / was / have などは短縮されがちです（he's, I've）。かたまりで聞き取る練習をしましょう。",
+      "短縮形（I'm / didn't など）": "I'm / didn't などはかたまりの音で覚えると聞き取れます。",
+      "接続詞（because / although など）": "長い文は because / although の前後で区切って覚えると繰り返しやすくなります。",
+      "内容語（名詞・動詞・形容詞）": "意味の中心の語が抜けています。長い文はまず意味をつかみ、イメージで覚えましょう。",
+      "代名詞": "you / him / them などは弱く短くなります（tell him → テリム）。前の語とつなげて聞きましょう。"};
+    return `<div class="field"><label>全体のまとめ（Part Bでよく抜けた語のパターン）</label>
+      ${pt.cats.length ? `<ul class="finds">${pt.cats.map(([k, n]) => `<li class="warn" style="display:grid"><span class="ic">${n}</span><span><b>${esc(k)}</b><div class="tp">${esc(tips[k] || "")}</div></span></li>`).join("")}</ul>` : `<div class="sub">目立つ抜けはありませんでした。</div>`}
+      ${pt.words.length ? `<div class="sub">よく抜けた語：${pt.words.map(([w, n]) => `${esc(w)}${n > 1 ? `×${n}` : ""}`).join(", ")}</div>` : ""}
+      <div class="sub">フィラー合計 ${pt.fillers}回・言い直し合計 ${pt.restarts}回</div></div>`;
   }
 
   function renderMockResult(res, sm){
@@ -764,7 +1036,7 @@ ${g}
       d.innerHTML = `<summary><span class="chip">${e.p}</span> <span class="vsumtxt"></span><span class="vtag${bad ? " bad" : ""}">${tag}</span></summary>
         <div class="vdet">
           ${e.judge || ""}
-          <div class="sub">話し始め ${e.r.onset == null ? "–" : e.r.onset.toFixed(1) + "秒"}・フィラー ${e.stats.fillers}回・1秒以上の間 ${e.stats.pauses}回${e.stats.wpm ? "・WPM " + e.stats.wpm : ""}</div>
+          <div class="sub">話し始め ${e.r.onset == null ? "–" : e.r.onset.toFixed(1) + "秒"}・フィラー ${e.stats.fillers}回・言い直し ${e.stats.restarts}回・1秒以上の間 ${e.stats.pauses}回${e.stats.wpm ? "・WPM " + e.stats.wpm : ""}</div>
           ${e.r.blob ? `<audio controls playsinline preload="none" src="${URL.createObjectURL(e.r.blob)}"></audio>` : ""}
           <div class="field"><label>あなたの回答</label><div class="vbox">${e.tr ? esc(e.tr.display || "（なし）") : esc("文字起こしできませんでした " + e.err)}</div></div>
           <div class="field"><label>問題のスクリプト</label><div class="vlisten"></div><div class="vbox">${scriptHTML(e.p, e.it)}</div></div>
@@ -830,6 +1102,8 @@ ${g}
     const inPart = bank.parts[p] && bank.parts[p].items.find(x => x.id === id);
     if (inPart) return inPart;
     for (const k in (bank.sets || {})){ const x = bank.sets[k].items.find(y => y.id === id); if (x) return x; }
+    const g = store.get("v-gencache", {})[id]; if (g) return g.it;
+    for (const s of store.get("v-imports", [])){ const x = s.items.find(y => y.id === id); if (x) return x; }
     return null;
   }
   function weakItems(max){

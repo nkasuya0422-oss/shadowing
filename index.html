@@ -169,6 +169,10 @@ audio{width:100%;height:40px}
 .vtag{font-weight:800;font-variant-numeric:tabular-nums}
 .vtag.bad{color:var(--miss)}
 .vdet{display:flex;flex-direction:column;gap:8px;padding-top:8px}
+.vstart{display:flex;flex-direction:column;gap:8px}
+.vprompt summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:.9rem}
+.vprompt pre{white-space:pre-wrap;font-size:.75rem;background:var(--bg);border-radius:10px;padding:10px;max-height:260px;overflow:auto}
+#vImpText{min-height:110px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
 .vgram mark{background:var(--miss-soft);color:var(--miss);border-radius:3px;padding:0 2px}
 .vctx{font-size:.92rem}
 #vResult .score,.vdet .score{display:flex;align-items:baseline;gap:10px}
@@ -302,6 +306,7 @@ audio{width:100%;height:40px}
 
 <script src="coach.js"></script>
 <script src="app.js"></script>
+<script src="gen.js"></script>
 <script src="versant.js"></script>
 </body>
 </html>
