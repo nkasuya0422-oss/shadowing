@@ -925,4 +925,4 @@ async function loadDaily(){
 }
 
 render(); applyView(); loadVoices(); renderHist(); setMode(mode); loadDaily();
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).catch(() => {});
