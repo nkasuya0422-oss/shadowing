@@ -219,7 +219,7 @@ if (typeof window !== "undefined") (function(){
       case "A": return [{v:"N", t: it.q}];
       case "B": return [{v:"N", t: it.text}];
       case "C": return [...it.lines.map(l => ({v: l.s, t: l.t, gap: 350})), {v:"N", t: it.q, pre: 500}];
-      case "D": return [{v:"N", t: it.passage}, {v:"N", t: it.q, pre: 700}];
+      case "D": return it.samePassage ? [{v:"N", t: it.q, pre: 300}] : [{v:"N", t: it.passage}, {v:"N", t: it.q, pre: 700}];
       case "E": return [{v:"N", t: it.passage}];
       case "F": return [{v:"N", t: it.q}];
     }
@@ -430,15 +430,16 @@ if (typeof window !== "undefined") (function(){
         judge = `<div class="score"><span class="big" style="color:var(${ok ? "--hit" : "--miss"})">${ok ? "○" : "×"}</span><span class="sub">${ok ? "正解の語が含まれています" : "正解の語が聞き取れませんでした"}（自動判定・目安）</span></div>`;
       } else if (p === "E"){
         const c = VS.retellChecklist(said, it.keys); const n = Object.values(c).filter(Boolean).length; score = n * 25;
-        judge = `<div class="score"><span class="big">${n}/4</span><span class="sub">話の要素（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [E_LABEL[k], v]));
+        judge = `<div class="score"><span class="big">${n}/4</span><span class="sub">話の要素（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [E_LABEL[k] || k, v]));
       } else if (p === "F"){
-        const c = VS.opinionChecklist(said); const n = Object.values(c).filter(Boolean).length;
+        const c = it.checks ? Object.fromEntries(it.checks.map(ch => [ch.label, VS.checkAnswer(said, ch.any)])) : VS.opinionChecklist(said);
+        const n = Object.values(c).filter(Boolean).length, nMax = Object.keys(c).length;
         const tc = VS.topicCoverage(said, it.q);
-        score = Math.round(n / 5 * 50 + tc.pct / 2);          // template 50% + prompt words 50%
-        judge = `<div class="score"><span class="big">${score}%</span><span class="sub">型 ${n}/5 ＋ お題の言葉 ${tc.hit}/${tc.total}（自動判定・目安）</span></div>
+        score = Math.round(n / nMax * 50 + tc.pct / 2);          // template 50% + prompt words 50%
+        judge = `<div class="score"><span class="big">${score}%</span><span class="sub">型 ${n}/${nMax} ＋ お題の言葉 ${tc.hit}/${tc.total}（自動判定・目安）</span></div>
           <div class="field"><label>お題の言葉を使えたか</label><p class="vdiff">${tc.rows.map(r => `<span class="w ${r.ok ? "ok" : "ng"}">${esc(r.w)}</span>`).join(" ")}</p>
           <div class="sub">本番は「お題に関係する語」が出てくるかで内容が評価されます。質問に出てきた語を回答の中でも使いましょう。</div></div>`
-          + checklist(Object.entries(c).map(([k, v]) => [F_LABEL[k], v]));
+          + checklist(Object.entries(c).map(([k, v]) => [F_LABEL[k] || k, v]));
       }
     }
     return {score, judge, stats};
@@ -611,18 +612,24 @@ ${g}
         <li class="warn" style="display:grid"><span class="ic">4</span><span>結果は最後にまとめて表示します（採点はテスト中に裏で進めます）。</span></li>
       </ul>
       ${az() ? "" : `<div class="err">設定タブでAzureのキーを入れてから始めてください（読み上げと採点に使います）。</div>`}
-      <button class="btn" id="vMockGo"${az() ? "" : " disabled"}>テストを開始する</button></div>`;
+      <div class="row">
+        <button class="btn" id="vMockGo"${az() ? "" : " disabled"}>ランダム出題で開始</button>
+        ${bank.sets && bank.sets.first ? `<button class="btn ghost" id="vMockSet"${az() ? "" : " disabled"}>${esc(bank.sets.first.name)}で開始${store.get("v-set-done-first", false) ? "（受験済み）" : ""}</button>` : ""}
+      </div>
+      <div class="sub">「${bank.sets && bank.sets.first ? esc(bank.sets.first.name) : ""}」はパート別練習には出てこない、決まった40問です。初見の力を試すのに使ってください。</div></div>`;
     $("vBack").addEventListener("click", renderHome);
-    $("vMockGo").addEventListener("click", startMock);
+    $("vMockGo").addEventListener("click", () => startMock(null));
+    if ($("vMockSet")) $("vMockSet").addEventListener("click", () => startMock("first"));
   }
 
-  async function startMock(){
+  async function startMock(setKey){
     cancel();
     const token = run;
     setAudioSession("play-and-record"); unlockAudio();
     const list = [];
-    (window.__vPlan || PLAN).forEach(([p, n]) => shuffle(bank.parts[p].items).slice(0, n).forEach(it => list.push({p, it})));
-    mock = {list, results: [], token, done: 0, queue: Promise.resolve()};
+    if (setKey && bank.sets && bank.sets[setKey]) bank.sets[setKey].items.forEach(it => list.push({p: it.p, it}));
+    else (window.__vPlan || PLAN).forEach(([p, n]) => shuffle(bank.parts[p].items).slice(0, n).forEach(it => list.push({p, it})));
+    mock = {list, results: [], token, done: 0, queue: Promise.resolve(), set: setKey && bank.sets[setKey] ? setKey : null};
     state = "mock";
     $("vQ").innerHTML = `<div class="card vstage">
         <div class="row" style="justify-content:space-between"><span class="chip" id="vMPart">準備中</span><span class="sub" id="vMNum"></span></div>
@@ -698,6 +705,7 @@ ${g}
     res.forEach(e => h.unshift({d: today(), part: e.p, id: e.it.id, score: e.score, lat: e.r.onset, wpm: e.stats.wpm, mock: true}));
     store.set("v-hist", h.slice(0, 800));
     const summary = summarize(res);
+    if (mock.set){ summary.set = bank.sets[mock.set].name; store.set("v-set-done-" + mock.set, true); }
     const mh = store.get("v-mock", []); mh.unshift(summary); store.set("v-mock", mh.slice(0, 30));
     renderMockResult(res, summary);
   }
@@ -742,7 +750,7 @@ ${g}
 
   function renderMockResult(res, sm){
     $("vHome").hidden = true; const q = $("vQ"); q.hidden = false;
-    q.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><h2>模擬テストの結果</h2><span class="sub">${esc(sm.date)}</span></div>
+    q.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><h2>模擬テストの結果</h2><span class="sub">${esc(sm.date)}${sm.set ? "・" + esc(sm.set) : ""}</span></div>
       ${summaryTable(sm)}
       <div class="row"><button class="btn ghost" id="vHome2">パート一覧へ</button><button class="btn" id="vRetry">もう一度受ける</button></div></div>
       <div class="card"><h2>問題ごとの結果</h2><div class="sub">タップすると、スクリプト・あなたの回答・録音・模範解答を確認できます。</div><div id="vItems"></div></div>`;
@@ -778,7 +786,7 @@ ${g}
 
   function showMockSummaryOnly(sm){
     $("vHome").hidden = true; const q = $("vQ"); q.hidden = false;
-    q.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><h2>模擬テストの結果</h2><span class="sub">${esc(sm.date)}</span></div>
+    q.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><h2>模擬テストの結果</h2><span class="sub">${esc(sm.date)}${sm.set ? "・" + esc(sm.set) : ""}</span></div>
       ${summaryTable(sm)}<button class="btn ghost" id="vHome2">パート一覧へ</button></div>`;
     $("vHome2").addEventListener("click", renderHome);
   }
@@ -818,12 +826,18 @@ ${g}
     return b;
   }
   /* weakest recent items: latest result per question, low scores first */
+  function findItem(p, id){
+    const inPart = bank.parts[p] && bank.parts[p].items.find(x => x.id === id);
+    if (inPart) return inPart;
+    for (const k in (bank.sets || {})){ const x = bank.sets[k].items.find(y => y.id === id); if (x) return x; }
+    return null;
+  }
   function weakItems(max){
     const latest = new Map();
     hist().forEach(h => { if (!latest.has(h.id)) latest.set(h.id, h); });      // hist is newest first
     const all = [];
     latest.forEach(h => {
-      const it = bank.parts[h.part] && bank.parts[h.part].items.find(x => x.id === h.id);
+      const it = findItem(h.part, h.id);
       if (!it) return;
       const score = typeof h.score === "number" ? h.score : 0;                  // no transcript / no answer counts as weak
       const weak = (h.part === "A" || h.part === "C" || h.part === "D") ? score === 0 : score < 70;

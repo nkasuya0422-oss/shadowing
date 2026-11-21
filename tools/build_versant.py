@@ -423,9 +423,73 @@ F += [
    "I think taking a gap year is better, for two reasons. First, people can learn what they really want to do. For example, they can try volunteer work. Second, travel teaches independence. So overall, I prefer taking a gap year."),
 ]
 
+# ---------- fixed mock set "初見用" (supplied by the user, 2026-11-21) ----------
+# Used only by the mock test (never shown in part practice), in this exact order.
+P1 = "Ken wanted to learn to cook, but he was always too busy after work. His sister suggested cooking on weekends instead. He started making one new dish every Sunday. After six months, he could cook more than twenty different meals."
+P2 = "A small café noticed that many customers were working on laptops but leaving early. The owner found out there weren't enough power outlets. She added outlets to every table. Soon, customers stayed longer and ordered more drinks."
+SET1 = [
+  {"p":"A","q":"What do you call the person who flies an airplane?","accept":["pilot"],"model":"A pilot."},
+  {"p":"A","q":"Which is heavier, a feather or a brick?","accept":["brick"],"model":"A brick."},
+  {"p":"A","q":"If today is Wednesday, what day was yesterday?","accept":["tuesday"],"model":"Tuesday."},
+  {"p":"A","q":"What do you use to cut paper?","accept":["scissor"],"model":"Scissors."},
+  {"p":"A","q":"Do fish live in water or in trees?","accept":["water"],"model":"In water."},
+  {"p":"A","q":"How many legs does a spider have?","accept":["eight","8"],"model":"Eight."},
+  {"p":"A","q":"What season comes after winter?","accept":["spring"],"model":"Spring."},
+  {"p":"A","q":"Where do you go to borrow books?","accept":["library"],"model":"A library."},
+] + [{"p":"B","text":t} for t in [
+  "She called me last night.",
+  "The keys are on the table.",
+  "Could you turn down the music?",
+  "I'm going to the dentist after work.",
+  "The meeting room on the third floor is booked.",
+  "He forgot to bring his laptop charger today.",
+  "They're painting the office walls this weekend.",
+  "We'll need to leave early to catch the last train.",
+  "The package should arrive sometime before Thursday.",
+  "I didn't realize the store had already closed.",
+  "Could you send me the slides before the presentation starts?",
+  "Most of the staff prefer working in the morning.",
+  "If it rains tomorrow, the picnic will be moved indoors.",
+  "The new coffee machine is much easier to use than the old one.",
+  "She's been learning Spanish since she moved to Madrid.",
+  "They're trying to reduce costs, but so far nothing has really worked.",
+]] + [
+  {"p":"C","lines":[{"s":"M","t":"Are you coming to the party on Saturday?"},{"s":"W","t":"I can't. My parents are visiting."},{"s":"M","t":"Maybe next time, then."}],"q":"Why can't the woman go to the party?","accept":["parent","visiting"],"model":"Her parents are visiting."},
+  {"p":"C","lines":[{"s":"M","t":"This coffee is cold."},{"s":"W","t":"Sorry, I'll make you a new one."},{"s":"M","t":"Thanks."}],"q":"What is wrong with the coffee?","accept":["cold"],"model":"It's cold."},
+  {"p":"C","lines":[{"s":"W","t":"How did you get here so fast?"},{"s":"M","t":"I took a taxi instead of the bus."},{"s":"W","t":"Smart choice."}],"q":"How did the man get there?","accept":["taxi","cab"],"model":"By taxi."},
+  {"p":"C","lines":[{"s":"W","t":"Is the report due today?"},{"s":"M","t":"No, the deadline was moved to Monday."},{"s":"W","t":"Great, more time."}],"q":"When is the report due?","accept":["monday"],"model":"On Monday."},
+  {"p":"C","lines":[{"s":"M","t":"Which color should we paint the kitchen?"},{"s":"W","t":"Blue is nice, but yellow is brighter."},{"s":"M","t":"Let's go with yellow."}],"q":"What color will they paint the kitchen?","accept":["yellow"],"model":"Yellow."},
+  {"p":"C","lines":[{"s":"W","t":"I lost my phone on the train."},{"s":"M","t":"Did you call the station?"},{"s":"W","t":"Yes, they found it."}],"q":"Where did the woman lose her phone?","accept":["train"],"model":"On the train."},
+  {"p":"D","passage":P1,"q":"Why couldn't Ken cook after work?","accept":["busy"],"model":"Because he was too busy."},
+  {"p":"D","passage":P1,"samePassage":True,"q":"Who gave Ken advice?","accept":["sister"],"model":"His sister."},
+  {"p":"D","passage":P1,"samePassage":True,"q":"How many meals could Ken cook after six months?","accept":["twenty","20"],"model":"More than twenty."},
+  {"p":"D","passage":P2,"q":"What were many customers doing in the café?","accept":["laptop","working"],"model":"Working on laptops."},
+  {"p":"D","passage":P2,"samePassage":True,"q":"What was the problem?","accept":["outlet","power","plug"],"model":"There weren't enough power outlets."},
+  {"p":"D","passage":P2,"samePassage":True,"q":"What happened after the change?","accept":["longer","ordered more","more drinks"],"model":"Customers stayed longer and ordered more drinks."},
+  {"p":"E","passage":"Lisa's office was always messy, and she often couldn't find important papers. One day, she spent an hour looking for a contract. After that, she decided to clean her desk for five minutes every evening. Within a month, her office was tidy, and she never lost a document again.",
+   "keys":{"散らかっていた":["messy","mess","dirty","couldn't find","could not find"],"契約書探しに1時間":["hour","contract"],"毎晩5分片付け":["five minutes","5 minutes","every evening","every night","clean"],"1か月できれいに":["tidy","clean","never lost","month"]},
+   "model":"This story is about Lisa. Her office was always messy, and one day she spent an hour looking for a contract. Then she decided to clean her desk for five minutes every evening. In the end, her office was tidy within a month, and she never lost a document again."},
+  {"p":"E","passage":"Tom wanted to save money for a trip to Canada. He noticed he spent a lot on coffee every day. He started making coffee at home instead. After a year, he had saved enough money for the trip.",
+   "keys":{"カナダ旅行の貯金":["canada","trip","save"],"コーヒー代が多い":["coffee","spent","spend"],"家で作る":["home","make","making","made"],"1年で貯まった":["year","enough","saved"]},
+   "model":"This story is about Tom. He wanted to save money for a trip to Canada, but he spent a lot on coffee every day. Then he started making coffee at home. In the end, he saved enough money for the trip after a year."},
+  {"p":"F","q":"Do you prefer working from home or working in an office? Explain why.",
+   "model":"I prefer working from home, for two reasons. First, I don't have to commute, so I save about two hours every day. Second, it's quiet at home, so I can focus on my work. That's why I prefer working from home."},
+  {"p":"F","q":"What are two advantages of living in a big city? What are two disadvantages?",
+   "checks":[{"label":"利点を言えた（advantage / good thing）","any":["advantage","good thing","good point","benefit","one good"]},
+             {"label":"欠点を言えた（disadvantage / downside）","any":["disadvantage","bad thing","bad point","downside","drawback"]},
+             {"label":"2つずつ挙げた（First / Second / also）","any":["second","another","also"]},
+             {"label":"結論まで言い切った（That's why / So overall）","any":["that's why","so overall","overall","in conclusion","to sum up"]}],
+   "model":"Living in a big city has two big advantages. First, there are many jobs. Second, public transportation is very convenient. But there are also two disadvantages. First, rent is very expensive. Second, it's crowded and noisy. That's why a big city is convenient, but it can also be stressful."},
+]
+for i, it in enumerate(SET1):
+  it["id"] = f"S1-{it['p']}{i+1:02d}"
+
 out = {
   "version": 1,
   "note": "Original practice items written for this app (CEFR B1–B2). Not real Versant test content.",
+  "sets": {
+    "first": {"name": "初見用セット", "note": "ユーザー提供の模擬問題（パート別練習には出さない）", "items": SET1}
+  },
   "parts": {
     "A": {"name": "短く答える", "en": "Short Answer Questions", "count": 8, "time": 15,
           "items": [{"id": f"A{i+1:02d}", "q": q, "accept": acc, "model": m} for i, (q, acc, m) in enumerate(A)]},
@@ -447,4 +511,6 @@ for it in out["parts"]["B"]["items"]:
   n = len(it["text"].split()); assert 5 <= n <= 15, (it["text"], n)
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 json.dump(out, open(os.path.join(root, "versant.json"), "w"), ensure_ascii=False, indent=1)
-print({k: len(p["items"]) for k, p in out["parts"].items()})
+from collections import Counter
+assert Counter(x["p"] for x in SET1) == Counter({"A":8,"B":16,"C":6,"D":6,"E":2,"F":2}), Counter(x["p"] for x in SET1)
+print({k: len(p["items"]) for k, p in out["parts"].items()}, "set first:", len(SET1))
