@@ -500,6 +500,7 @@ if (typeof window !== "undefined") (function(){
     box.querySelector(".vlisten").appendChild(listenButton(p0, it0));
     if (long && tr) fillGrammar(box, tr.display, grammar);
     $("vAsk").appendChild(claudeButton(() => claudePrompt(p0, it0, tr, st, lastScore, grammar)));
+    $("vAsk").firstChild.appendChild(shadowButton(p0, it0));
     $("vAgain").addEventListener("click", () => { $("vResult").hidden = true; begin(); });
     $("vNext").addEventListener("click", () => { showQuestion(nextItem(part)); begin(); });   // flows straight into the next prompt, like the real test
     $("vStart").hidden = true; $("vReplay").hidden = true;
@@ -767,7 +768,9 @@ ${g}
       const grammar = [];
       let checked = false;
       d.addEventListener("toggle", () => { if (d.open && !checked && d.querySelector(".vgram")){ checked = true; fillGrammar(d, e.tr.display, grammar); } });
-      d.querySelector(".vdet").appendChild(claudeButton(() => claudePrompt(e.p, e.it, e.tr, e.stats, e.score, grammar)));
+      const askRow = claudeButton(() => claudePrompt(e.p, e.it, e.tr, e.stats, e.score, grammar));
+      askRow.appendChild(shadowButton(e.p, e.it));
+      d.querySelector(".vdet").appendChild(askRow);
       box.appendChild(d);
     });
     window.scrollTo(0, 0);
@@ -783,6 +786,70 @@ ${g}
   const wait = ms => new Promise(r => setTimeout(r, ms));
   function status(t){ const s = $("vStatus"); if (s) s.textContent = t; }
   function setFill(f){ const el = $("vFill"); if (el) el.style.width = Math.round(f * 100) + "%"; }
+
+
+  /* ================= Versant → シャドーイング教材 ================= */
+  /* What to shadow for each part: B = the sentence itself; A/C/D = what was heard (question,
+     conversation, passage) to train listening; E/F = the model answer, so the useful phrasing
+     ("This story is about…", "For example…") gets drilled with pronunciation feedback. */
+  const splitSent = t => String(t).replace(/\s+/g, " ").match(/[^.!?]+[.!?]+["')\]]*|[^.!?]+$/g)?.map(x => x.trim()).filter(Boolean) || [];
+  function itemSentences(p, it){
+    switch (p){
+      case "A": return [it.q];
+      case "B": return [it.text];
+      case "C": return [...it.lines.map(l => l.t), it.q];
+      case "D": return [...splitSent(it.passage), it.q];
+      case "E": return splitSent(it.model);
+      case "F": return splitSent(it.model);
+    }
+    return [];
+  }
+  function toShadowing(list, title){
+    const sentences = [];
+    list.forEach(({p, it}) => itemSentences(p, it).forEach(en => { if (en && !sentences.some(x => x.en === en)) sentences.push({en, ja: `Versant ${p}`}); }));
+    if (!sentences.length) return false;
+    setScript({title, level: "Versant", sentences: sentences.slice(0, 14)});
+    showTab("practice");
+    return true;
+  }
+  function shadowButton(p, it){
+    const b = document.createElement("button"); b.className = "btn ghost small"; b.textContent = "シャドーイングで練習";
+    b.addEventListener("click", () => toShadowing([{p, it}], `Versant ${p}・${it.id}`));
+    return b;
+  }
+  /* weakest recent items: latest result per question, low scores first */
+  function weakItems(max){
+    const latest = new Map();
+    hist().forEach(h => { if (!latest.has(h.id)) latest.set(h.id, h); });      // hist is newest first
+    const out = [];
+    latest.forEach(h => {
+      if (typeof h.score !== "number") return;
+      const weak = (h.part === "A" || h.part === "C" || h.part === "D") ? h.score === 0 : h.score < 70;
+      if (!weak) return;
+      const it = bank.parts[h.part] && bank.parts[h.part].items.find(x => x.id === h.id);
+      if (it) out.push({p: h.part, it, score: h.score});
+    });
+    const pri = {B: 0, E: 1, F: 2, A: 3, C: 4, D: 5};                         // repeats first: pure pronunciation/fluency
+    out.sort((a, b) => a.score - b.score || pri[a.p] - pri[b.p]);
+    return out.slice(0, max);
+  }
+  function addSourceCard(){
+    const src = document.getElementById("p-src"); if (!src || document.getElementById("vShadowCard")) return;
+    const c = document.createElement("div"); c.className = "card"; c.id = "vShadowCard";
+    c.innerHTML = `<h2>Versantの苦手から作る</h2>
+      <div class="sub">Versantの練習・模擬テストで点数が低かった問題（Bの一致率70%未満、A/C/Dの不正解など）を集めて教材にします。シャドーイングで提出すると、発音まで添削されます。</div>
+      <div class="row"><button class="btn" id="vShadowBtn">苦手な問題で教材を作る</button></div><div class="sub" id="vShadowMsg"></div>`;
+    src.insertBefore(c, src.firstChild);
+    c.querySelector("#vShadowBtn").addEventListener("click", async () => {
+      const msg = c.querySelector("#vShadowMsg");
+      try { await loadBank(); } catch(e){ msg.textContent = "問題データを読み込めませんでした。"; return; }
+      const w = weakItems(6);
+      if (!w.length){ msg.textContent = "まだ苦手な問題の記録がありません。Versantタブで練習すると、ここに集まります。"; return; }
+      const d = new Date().toLocaleDateString("ja-JP", {month: "numeric", day: "numeric"});
+      toShadowing(w, `Versant苦手 ${d}（${w.map(x => x.p).join("")}）`);
+    });
+  }
+  addSourceCard();
 
   window.Versant = {show: renderHome, cancel};
 })();
