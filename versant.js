@@ -821,17 +821,19 @@ ${g}
   function weakItems(max){
     const latest = new Map();
     hist().forEach(h => { if (!latest.has(h.id)) latest.set(h.id, h); });      // hist is newest first
-    const out = [];
+    const all = [];
     latest.forEach(h => {
-      if (typeof h.score !== "number") return;
-      const weak = (h.part === "A" || h.part === "C" || h.part === "D") ? h.score === 0 : h.score < 70;
-      if (!weak) return;
       const it = bank.parts[h.part] && bank.parts[h.part].items.find(x => x.id === h.id);
-      if (it) out.push({p: h.part, it, score: h.score});
+      if (!it) return;
+      const score = typeof h.score === "number" ? h.score : 0;                  // no transcript / no answer counts as weak
+      const weak = (h.part === "A" || h.part === "C" || h.part === "D") ? score === 0 : score < 70;
+      all.push({p: h.part, it, score, weak});
     });
     const pri = {B: 0, E: 1, F: 2, A: 3, C: 4, D: 5};                         // repeats first: pure pronunciation/fluency
-    out.sort((a, b) => a.score - b.score || pri[a.p] - pri[b.p]);
-    return out.slice(0, max);
+    all.sort((a, b) => a.score - b.score || pri[a.p] - pri[b.p]);
+    const weak = all.filter(x => x.weak);
+    if (weak.length) return {list: weak.slice(0, max), fallback: false, seen: all.length};
+    return {list: all.filter(x => x.score < 100).slice(0, max), fallback: true, seen: all.length};
   }
   function addSourceCard(){
     const src = document.getElementById("p-src"); if (!src || document.getElementById("vShadowCard")) return;
@@ -843,10 +845,13 @@ ${g}
     c.querySelector("#vShadowBtn").addEventListener("click", async () => {
       const msg = c.querySelector("#vShadowMsg");
       try { await loadBank(); } catch(e){ msg.textContent = "問題データを読み込めませんでした。"; return; }
-      const w = weakItems(6);
-      if (!w.length){ msg.textContent = "まだ苦手な問題の記録がありません。Versantタブで練習すると、ここに集まります。"; return; }
+      const {list: w, fallback, seen} = weakItems(6);
+      if (!w.length){
+        msg.textContent = seen ? `Versantの記録${seen}問はすべて満点でした。苦手な問題が出たら、ここに集まります。` : "Versantの記録がまだありません。Versantタブでパート別練習か模擬テストをすると、ここに集まります。";
+        return;
+      }
       const d = new Date().toLocaleDateString("ja-JP", {month: "numeric", day: "numeric"});
-      toShadowing(w, `Versant苦手 ${d}（${w.map(x => x.p).join("")}）`);
+      toShadowing(w, `Versant${fallback ? "の復習" : "苦手"} ${d}（${w.map(x => x.p).join("")}）`);
     });
   }
   addSourceCard();
