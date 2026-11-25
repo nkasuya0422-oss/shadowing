@@ -147,6 +147,26 @@ if (typeof module !== "undefined" && module.exports){ module.exports = VS; }
 if (typeof window !== "undefined") (function(){
   const ORDER = ["A","B","C","D","E","F"];
   const PRIORITY = new Set(["B","E","F"]);
+  /* part info; "S" (unscored speech sample) only exists in generated 本番レベル tests */
+  const PEXTRA = {S: {name: "スピーチサンプル（採点外）", en: "Speech sample", count: 1, time: 30, items: []}};
+  const pinfo = p => (bank && bank.parts[p]) || PEXTRA[p];
+  /* question level for generated items: hard = 本番レベル (default), basic = 基礎 */
+  const level = () => store.get("v-level", "hard") === "basic" ? "basic" : "hard";
+  const LEVEL_NAME = {hard: "本番レベル", basic: "基礎"};
+  function levelSeg(onChange){
+    const d = document.createElement("div");
+    d.innerHTML = `<label>問題の難しさ（自動生成）</label><div class="seg vlevel"><button data-l="hard">本番レベル</button><button data-l="basic">基礎</button></div>
+      <div class="sub vlevelnote"></div>`;
+    const paint = () => {
+      d.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.l === level())));
+      d.querySelector(".vlevelnote").textContent = level() === "hard"
+        ? "本番に近い難しさ：Aは語彙の意味、Bは否定・完了形・似た音、Cは4〜6ターンの会話とイディオム、D/Eは6〜8文の話。最初に採点外のスピーチサンプルがあります。"
+        : "やさしめ：Aは常識・計算、短い会話と文章。慣れるまでの練習向けです。";
+    };
+    d.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { store.set("v-level", b.dataset.l); paint(); if (onChange) onChange(); }));
+    paint();
+    return d;
+  }
   const VOICE = {N: "en-US-JennyNeural", M: "en-US-AndrewMultilingualNeural", W: "en-US-AvaMultilingualNeural", M2: "en-US-BrianMultilingualNeural", W2: "en-US-EmmaMultilingualNeural"};
   const SHORT = new Set(["A","B","C","D"]);
   const E_LABEL = {person: "人物", problem: "問題", action: "行動", result: "結果"};
@@ -186,14 +206,15 @@ if (typeof window !== "undefined") (function(){
         <div class="sub">全40問（A8・B16・C6・D6・E2・F2）を本番どおり通しで出題します。約17分。戻る・聞き直しはできず、6秒話さないと次の問題へ進みます。結果は最後にまとめて表示します。</div>
         <button class="btn" id="vMockBtn">模擬テストを始める</button>
         <div id="vMockHist"></div></div>
-      <div class="card"><label>パート別練習の出題</label>
-        <div class="seg" id="vSrc"><button data-s="gen">自動生成（毎回新しい）</button><button data-s="bank">問題バンクから</button></div></div>
+      <div class="card"><div id="vLevelHome"></div><label style="margin-top:8px">パート別練習の出題</label>
+        <div class="seg" id="vSrc"><button data-s="gen">自動生成（毎回新しい）</button><button data-s="bank">問題バンクから（基礎）</button></div></div>
       <div class="vparts" id="vParts">読み込み中…</div>`;
     try { await loadBank(); } catch(e){ $("vParts").textContent = "問題データを読み込めませんでした。通信を確認して開き直してください。"; return; }
     $("vMockBtn").addEventListener("click", mockIntro);
     const paintSrc = () => document.querySelectorAll("#vSrc button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.s === practiceSrc())));
     document.querySelectorAll("#vSrc button").forEach(b => b.addEventListener("click", () => { store.set("v-src", b.dataset.s); paintSrc(); }));
     paintSrc();
+    $("vLevelHome").appendChild(levelSeg());
     renderMockHist();
     const box = $("vParts"); box.innerHTML = "";
     ORDER.forEach(p => {
@@ -235,11 +256,11 @@ if (typeof window !== "undefined") (function(){
   function nextItem(p){
     if (practiceSrc() === "gen" && window.VGen){
       const recent = store.get("v-recent-" + p, []);
-      const it = VGen.one(p, seenMap(), recent);
+      const it = VGen.one(p, seenMap(), recent, level());
       if (it){
         markSeen([{p, it}]);
         store.set("v-recent-" + p, [it.tpl, ...recent].slice(0, p === "B" ? 8 : 3));
-        return {it, n: "自動生成", total: null};
+        return {it, n: "自動生成・" + LEVEL_NAME[level()], total: null};
       }
     }
     const P = bank.parts[p], k = "v-deck-" + p, ids = P.items.map(x => x.id);
@@ -258,7 +279,7 @@ if (typeof window !== "undefined") (function(){
 
   function showQuestion({it, n, total}){
     item = it; state = "idle";
-    const P = bank.parts[part];
+    const P = pinfo(part);
     $("vHome").hidden = true; const q = $("vQ"); q.hidden = false;
     q.innerHTML = `<div class="card">
         <div class="row" style="justify-content:space-between"><button class="btn ghost small" id="vBack">← パート一覧</button><span class="chip">Part ${part}・${total ? `${n}/${total}` : n}</span></div>
@@ -290,7 +311,8 @@ if (typeof window !== "undefined") (function(){
       C: "2人の会話のあとに質問が流れます。決まった内容（時間・場所・数など）を短く答えます。",
       D: "短い文章のあとに質問が流れます。人物・出来事・理由・結果を短く答えます。",
       E: "聞いた話を自分の言葉で言い直します。下の型を使いましょう。",
-      F: "身近なテーマについて意見を言います。下の型を使いましょう。"
+      F: "身近なテーマについて意見を言います。下の型を使いましょう。",
+      S: "採点外のスピーチサンプルです。テーマについて30秒ほど自由に話して、声と話す感覚を整えましょう。"
     }[p];
   }
 
@@ -303,6 +325,7 @@ if (typeof window !== "undefined") (function(){
       case "D": return it.samePassage ? [{v:"N", t: it.q, pre: 300}] : [{v:"N", t: it.passage}, {v:"N", t: it.q, pre: 700}];
       case "E": return [{v:"N", t: it.passage}];
       case "F": return [{v:"N", t: it.q}];
+      case "S": return [{v:"N", t: it.q}];
     }
   }
   function deviceVoiceFor(v){
@@ -402,7 +425,7 @@ if (typeof window !== "undefined") (function(){
     if (token !== run){ meter.stop(); return; }
     meter.freezeFloor();
     state = "answer";
-    rec = recordAnswer(stream, meter, bank.parts[part].time, token);
+    rec = recordAnswer(stream, meter, pinfo(part).time, token);
     $("vDone").hidden = false;
     const result = await rec.done;
     if (token !== run || !result) return;
@@ -515,12 +538,17 @@ if (typeof window !== "undefined") (function(){
           : nums.length && it.accept.some(a => /\d|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty/.test(a)) ? `数字が違います（あなた：${nums.join(" ")}）。${it.explain ? "計算：" + it.explain : "数字は最後に言われたものが答えになることが多いです。"}`
           : p === "C" ? "会話の途中で予定や答えが変わっています。最後に決まったことを答えましょう。"
           : p === "D" ? "質問の疑問詞（who / why / how many / what happened）に合う部分を答えましょう。"
-          : "質問の最後の部分（A or B のどちらか）をよく聞いて答えましょう。";
+          : / or /.test(it.q || "") ? "質問の最後の部分（A or B のどちらか）をよく聞いて答えましょう。"
+          : "語の意味を問う問題です。正解の語をまとめて覚えておくと次に答えられます。";
         judge = `<div class="score"><span class="big" style="color:var(${ok ? "--hit" : "--miss"})">${ok ? "○" : "×"}</span><span class="sub">${ok ? "正解の語が含まれています" : "正解の語が聞き取れませんでした"}（自動判定・目安）</span></div>
           <div class="vbox"><b>正解：</b>${esc(it.model || it.accept[0])}${it.explain && ok ? `（${esc(it.explain)}）` : ""}${why ? `<div class="sub" style="margin-top:4px">${esc(why)}</div>` : ""}</div>`;
       } else if (p === "E"){
         const c = VS.retellChecklist(said, it.keys); const n = Object.values(c).filter(Boolean).length; score = n * 25;
         judge = `<div class="score"><span class="big">${n}/4</span><span class="sub">話の要素（自動判定・目安）</span></div>` + checklist(Object.entries(c).map(([k, v]) => [E_LABEL[k] || k, v]));
+      } else if (p === "S"){
+        const tc = VS.topicCoverage(said, it.q);
+        judge = `<div class="score"><span class="big">採点外</span><span class="sub">スピーチサンプル（本番でも点数には入りません）</span></div>
+          <div class="field"><label>お題の言葉を使えたか（参考）</label><p class="vdiff">${tc.rows.map(r => `<span class="w ${r.ok ? "ok" : "ng"}">${esc(r.w)}</span>`).join(" ")}</p></div>`;
       } else if (p === "F"){
         const c = it.checks ? Object.fromEntries(it.checks.map(ch => [ch.label, VS.checkAnswer(said, ch.any)])) : VS.opinionChecklist(said);
         const n = Object.values(c).filter(Boolean).length, nMax = Object.keys(c).length;
@@ -560,11 +588,12 @@ if (typeof window !== "undefined") (function(){
       case "D": return `<p>${esc(item_.passage)}</p><p><b>質問：</b>${esc(item_.q)}</p>`;
       case "E": return `<p>${esc(item_.passage)}</p>`;
       case "F": return `<p>${esc(item_.q)}</p>`;
+      case "S": return `<p>${esc(item_.q)}</p>`;
     }
   }
   function renderResult(r, tr, st, judge, err){
     status(r.why === "time" ? "時間切れ（途中まででも採点されます）" : "回答終了");
-    $("vTime").textContent = `回答時間 ${bank.parts[part].time}秒`;
+    $("vTime").textContent = `回答時間 ${pinfo(part).time}秒`;
     const box = $("vResult"); box.hidden = false;
     const lat = st.latency;
     const metric = (label, val, warn) => `<div class="tile${warn ? " warn" : ""}"><b>${val}</b><span>${label}</span></div>`;
@@ -638,7 +667,7 @@ if (typeof window !== "undefined") (function(){
   }
 
   function claudePrompt(p, it, tr, st, score, grammar){
-    const P = bank.parts[p];
+    const P = pinfo(p);
     const script = p === "C" ? it.lines.map(l => `${l.s === "M" ? "Man" : "Woman"}: ${l.t}`).join("\n") + `\nQuestion: ${it.q}`
       : p === "D" ? `${it.passage}\nQuestion: ${it.q}` : p === "B" ? it.text : (it.q || it.passage || "");
     const g = grammar && grammar.length ? grammar.map(m => `- "${(tr && tr.display || "").slice(m.off, m.off + m.len)}" → ${m.fix.join(" / ") || "?"}（${m.msg}）`).join("\n") : "（自動チェックでは見つからず）";
@@ -764,7 +793,7 @@ ${g}
       const mine = imp.items.filter(x => x.p === p).map(it => ({p, it}));
       mine.forEach(x => out.push(x));
       const lack = plan[p] - mine.length;
-      if (lack > 0 && window.VGen) VGen.part(p, lack, seen).forEach(it => out.push({p, it}));
+      if (lack > 0 && window.VGen) VGen.part(p, lack, seen, level()).forEach(it => out.push({p, it}));
     });
     return out;
   }
@@ -795,6 +824,7 @@ ${g}
     C: "Part C. Conversations. You will hear a conversation between two people, followed by a question. Please answer the question with a word or a short phrase.",
     D: "Part D. Passage comprehension. You will hear a short passage, followed by a question. Please answer the question.",
     E: "Part E. Story retelling. You will hear a short story. Please retell the story in your own words.",
+    S: "Before the test begins, please answer a sample question. Your answer will not be scored.",
     F: "Part F. Open questions. You will hear a question. Please give your opinion and explain your reasons."
   };
   let mock = null;
@@ -812,6 +842,7 @@ ${g}
     $("vHome").hidden = true; const q = $("vQ"); q.hidden = false;
     q.innerHTML = `<div class="card"><button class="btn ghost small" id="vBack" style="align-self:flex-start">← 戻る</button>
       <h2>本番模擬テスト（全40問・約17分）</h2>
+      <div id="vLevelMock"></div>
       <ul class="finds">
         <li class="warn" style="display:grid"><span class="ic">1</span><span>イヤホンをつけ、静かな場所で受けてください。途中で止めると最初からになります。</span></li>
         <li class="warn" style="display:grid"><span class="ic">2</span><span>問題の音声は1回だけ。戻る・聞き直しはできません。</span></li>
@@ -821,7 +852,7 @@ ${g}
       ${az() ? "" : `<div class="err">設定タブでAzureのキーを入れてから始めてください（読み上げと採点に使います）。</div>`}
       <div class="vstart">
         <button class="btn" id="vMockGen"${az() ? "" : " disabled"}>新しい問題で開始（自動生成）</button>
-        <div class="sub">毎回テンプレートから新しく作ります。過去30日に出た問題は出しません。</div>
+        <div class="sub">毎回テンプレートから新しく作ります（上で選んだ難しさ）。過去30日に出た問題は出しません。問題バンク・初見用セットは基礎レベルです。</div>
         <button class="btn ghost" id="vMockGo"${az() ? "" : " disabled"}>問題バンクからランダム</button>
         ${bank.sets && bank.sets.first ? `<button class="btn ghost" id="vMockSet"${az() ? "" : " disabled"}>${esc(bank.sets.first.name)}で開始${store.get("v-set-done-first", false) ? "（受験済み）" : ""}</button>` : ""}
         <div id="vImpList"></div>
@@ -833,6 +864,7 @@ ${g}
         <div class="row"><button class="btn ghost" id="vImpBtn">取り込む</button></div>
         <div id="vImpMsg"></div></div>`;
     $("vBack").addEventListener("click", renderHome);
+    $("vLevelMock").appendChild(levelSeg());
     $("vMockGen").addEventListener("click", () => startMock("gen"));
     $("vMockGo").addEventListener("click", () => startMock(null));
     if ($("vMockSet")) $("vMockSet").addEventListener("click", () => startMock("first"));
@@ -860,16 +892,16 @@ ${g}
     const list = [];
     let impId = null;
     if (setKey) bank.sets[setKey].items.forEach(it => list.push({p: it.p, it}));
-    else if (source === "gen") VGen.buildTest(seenMap()).forEach(x => list.push(x));
+    else if (source === "gen") VGen.buildTest(seenMap(), level()).forEach(x => list.push(x));
     else if (source && source.startsWith("imp:")){
       impId = source.slice(4);
       const imp = store.get("v-imports", []).find(x => x.id === impId);
       if (imp) fillFromImport(imp).forEach(x => list.push(x));
     }
-    else (window.__vPlan || PLAN).forEach(([p, n]) => shuffle(bank.parts[p].items).slice(0, n).forEach(it => list.push({p, it})));
+    else (window.__vPlan || PLAN).filter(([p]) => bank.parts[p]).forEach(([p, n]) => shuffle(bank.parts[p].items).slice(0, n).forEach(it => list.push({p, it})));
     if (window.__vPlan && source === "gen"){ const keep = {}; window.__vPlan.forEach(([p, n]) => keep[p] = n); const c = {}; for (let i = list.length - 1; i >= 0; i--){ const p = list[i].p; c[p] = (c[p] || 0) + 1; } const seenC = {}; const trimmed = list.filter(x => (seenC[x.p] = (seenC[x.p] || 0) + 1) <= (keep[x.p] || 0)); list.length = 0; trimmed.forEach(x => list.push(x)); }
     markSeen(list);
-    mock = {list, results: [], token, done: 0, queue: Promise.resolve(), set: setKey, imp: impId, gen: source === "gen"};
+    mock = {list, results: [], token, done: 0, queue: Promise.resolve(), set: setKey, imp: impId, gen: source === "gen", level: level()};
     state = "mock";
     $("vQ").innerHTML = `<div class="card vstage">
         <div class="row" style="justify-content:space-between"><span class="chip" id="vMPart">準備中</span><span class="sub" id="vMNum"></span></div>
@@ -894,7 +926,7 @@ ${g}
       for (let k = 0; k < list.length; k++){
         if (token !== run) return;
         const q = list[k]; part = q.p; item = q.it;
-        $("vMPart").textContent = `Part ${part}・${bank.parts[part].name}`;
+        $("vMPart").textContent = `Part ${part}・${pinfo(part).name}`;
         $("vMNum").textContent = `${k + 1} / ${list.length}`;
         $("vTotal").style.width = Math.round(k / list.length * 100) + "%";
         $("vTime").textContent = ""; setFill(0);
@@ -912,7 +944,7 @@ ${g}
         await playPrompt(token);
         if (token !== run){ meter.stop(); return; }
         meter.freezeFloor();
-        rec = recordAnswer(stream, meter, bank.parts[part].time, token, {mock: true});
+        rec = recordAnswer(stream, meter, pinfo(part).time, token, {mock: true});
         const r = await rec.done; rec = null;
         if (!r || token !== run) return;
         const entry = {p: part, it: item, r, tr: null, err: ""};
@@ -942,11 +974,11 @@ ${g}
   function finishMock(){
     const res = mock.results.map(e => Object.assign(e, evaluate(e.p, e.it, e.r, e.tr)));
     const h = hist();
-    res.forEach(e => h.unshift({d: today(), part: e.p, id: e.it.id, score: e.score, lat: e.r.onset, wpm: e.stats.wpm, mock: true}));
+    res.filter(e => e.p !== "S").forEach(e => h.unshift({d: today(), part: e.p, id: e.it.id, score: e.score, lat: e.r.onset, wpm: e.stats.wpm, mock: true}));
     store.set("v-hist", h.slice(0, 800));
     const summary = summarize(res);
     if (mock.set){ summary.set = bank.sets[mock.set].name; store.set("v-set-done-" + mock.set, true); }
-    if (mock.gen) summary.set = "自動生成";
+    if (mock.gen) summary.set = "自動生成・" + LEVEL_NAME[mock.level];
     if (mock.imp){
       const imps = store.get("v-imports", []), x = imps.find(y => y.id === mock.imp);
       if (x){ summary.set = x.title; x.done = true; store.set("v-imports", imps); }
@@ -956,6 +988,7 @@ ${g}
   }
 
   function summarize(res){
+    res = res.filter(e => e.p !== "S");          // the speech sample is never scored
     const parts = {};
     ["A","B","C","D","E","F"].forEach(p => {
       const r = res.filter(e => e.p === p); if (!r.length) return;
@@ -989,7 +1022,7 @@ ${g}
       const x = sm.parts[p]; if (!x) return "";
       const main = p === "B" ? `平均一致率 ${x.pct}%` : (p === "E" ? `要素 ${x.pct}%` : p === "F" ? `型＋お題 ${x.pct}%` : `${x.correct}/${x.n} 正解`);
       const weak = x.pct != null && x.pct < 60;
-      return `<tr class="${weak ? "weak" : ""}"><td><b>${p}</b> ${esc(bank.parts[p].name)}</td><td>${main}</td><td>${x.lat == null ? "–" : x.lat + "秒"}</td><td>${x.noAnswer ? x.noAnswer + "問" : "0"}</td>${x.wpm != null && (p === "E" || p === "F") ? `<td>${x.wpm}</td>` : "<td>–</td>"}</tr>`;
+      return `<tr class="${weak ? "weak" : ""}"><td><b>${p}</b> ${esc(pinfo(p).name)}</td><td>${main}</td><td>${x.lat == null ? "–" : x.lat + "秒"}</td><td>${x.noAnswer ? x.noAnswer + "問" : "0"}</td>${x.wpm != null && (p === "E" || p === "F") ? `<td>${x.wpm}</td>` : "<td>–</td>"}</tr>`;
     };
     const ranked = Object.entries(sm.parts).filter(([, x]) => x.pct != null).sort((a, b) => a[1].pct - b[1].pct);
     const weakest = ranked.length ? ranked[0][0] : null;
@@ -1031,8 +1064,8 @@ ${g}
     const box = $("vItems");
     res.forEach((e, k) => {
       const d = document.createElement("details"); d.className = "vitem";
-      const tag = e.r.why === "noanswer" ? "無回答" : e.p === "B" ? `${e.score ?? "–"}%` : (e.p === "A" || e.p === "C" || e.p === "D") ? (e.score === 100 ? "○" : "×") : e.score != null ? `${e.score}%` : "–";
-      const bad = e.r.why === "noanswer" || (e.score != null && e.score < 60);
+      const tag = e.p === "S" ? "採点外" : e.r.why === "noanswer" ? "無回答" : e.p === "B" ? `${e.score ?? "–"}%` : (e.p === "A" || e.p === "C" || e.p === "D") ? (e.score === 100 ? "○" : "×") : e.score != null ? `${e.score}%` : "–";
+      const bad = e.p !== "S" && (e.r.why === "noanswer" || (e.score != null && e.score < 60));
       d.innerHTML = `<summary><span class="chip">${e.p}</span> <span class="vsumtxt"></span><span class="vtag${bad ? " bad" : ""}">${tag}</span></summary>
         <div class="vdet">
           ${e.judge || ""}
@@ -1040,7 +1073,7 @@ ${g}
           ${e.r.blob ? `<audio controls playsinline preload="none" src="${URL.createObjectURL(e.r.blob)}"></audio>` : ""}
           <div class="field"><label>あなたの回答</label><div class="vbox">${e.tr ? esc(e.tr.display || "（なし）") : esc("文字起こしできませんでした " + e.err)}</div></div>
           <div class="field"><label>問題のスクリプト</label><div class="vlisten"></div><div class="vbox">${scriptHTML(e.p, e.it)}</div></div>
-          ${(e.p === "E" || e.p === "F") && e.tr && e.tr.display ? grammarBlock() : ""}
+          ${(e.p === "E" || e.p === "F" || e.p === "S") && e.tr && e.tr.display ? grammarBlock() : ""}
           ${e.it.model ? `<div class="field"><label>模範解答</label><div class="vbox">${esc(e.it.model)}</div></div>` : ""}
         </div>`;
       d.querySelector(".vsumtxt").textContent = `${k + 1}. ${(e.it.q || e.it.text || e.it.passage || "").slice(0, 48)}…`;

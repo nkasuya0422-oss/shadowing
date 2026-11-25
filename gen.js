@@ -318,21 +318,31 @@ const VGen = (() => {
   ];
 
   const TPL = {A: A_T, B: B_T, C: C_T, D: D_T, E: E_T, F: F_T};
+  /* difficulty levels: "basic" is the set above; other levels register their own templates */
+  const LEVELS = {basic: TPL};
+  const H = {rnd, pick, int, shuffle, pickN, num, numAcc, cap, words, person, voices, g, fill,
+    DAYS, MONTHS, OBJ, PLACE, TIMES, CITY, COUNTRY, LANG, FOOD, CUISINE, EVENT};
+  function addLevel(name, factory){ LEVELS[name] = factory(H); }
+  const tplOf = (level, p) => (LEVELS[level] || TPL)[p] || TPL[p] || [];
 
   /* ---------- building items with the seen-history ---------- */
   let counter = 0;
   const uid = () => "G" + Date.now().toString(36) + (counter++).toString(36);
-  const sigKey = (t, sig) => `${t.id}|${String(sig).toLowerCase()}`;
+  const sigKey = (t, sig) => `${t.key || t.id}|${String(sig).toLowerCase()}`;
 
   /* one fresh item from part p, avoiding seen signatures and templates already used in this test */
   function fresh(p, seen, usedTpl, opts = {}){
-    let pool = TPL[p].filter(t => !usedTpl.has(t.id) && (!opts.tier || t.tier === opts.tier));
-    if (!pool.length) pool = TPL[p].filter(t => !opts.tier || t.tier === opts.tier);
+    const all = tplOf(opts.level, p);
+    let pool = all.filter(t => !usedTpl.has(t.id) && (!opts.tier || t.tier === opts.tier));
+    if (!pool.length) pool = all.filter(t => !opts.tier || t.tier === opts.tier);
     for (let tries = 0; tries < 60; tries++){
       const t = pick(pool), r = t.make(), key = sigKey(t, r.sig);
       if (seen && seen[key] && tries < 50) continue;
+      const inTest = usedTpl._keys || (usedTpl._keys = new Set());
+      if (inTest.has(key)) continue;
       if (p === "B" && (words(r.text) < 4 || words(r.text) > 16)) continue;
-      usedTpl.add(t.id);
+      if (!r.text && !r.q && !r.passage) continue;
+      usedTpl.add(t.id); inTest.add(key);
       const it = Object.assign({id: uid(), tpl: t.id, seenKey: key, generated: true}, r);
       delete it.sig;
       return it;
@@ -347,46 +357,51 @@ const VGen = (() => {
   }
 
   const PLAN = {A: 8, B: 16, C: 6, D: 6, E: 2, F: 2};
-  function buildTest(seen){
-    const list = [];
+  function buildTest(seen, level = "basic"){
+    const list = [], hard = level !== "basic";
+    if (hard && tplOf(level, "S").length){ const s = fresh("S", seen, new Set(), {level}); if (s) list.push({p: "S", it: s}); }
     ["A","B","C","D","E","F"].forEach(p => {
       const used = new Set();
       if (p === "B"){
         const tiers = [["s", 5], ["m", 6], ["l", 5]];
         tiers.forEach(([tier, n]) => {
-          const got = []; for (let i = 0; i < n; i++){ const it = fresh("B", seen, used, {tier}); if (it) got.push(it); }
+          const got = []; for (let i = 0; i < n; i++){ const it = fresh("B", seen, used, {tier, level}); if (it) got.push(it); }
           got.sort((a, b) => words(a.text) - words(b.text)).forEach(it => list.push({p, it}));
         });
       } else if (p === "D"){
-        const one = fresh("D", seen, used), three = [fresh("D", seen, used), fresh("D", seen, used), fresh("D", seen, used)];
-        const plan = Math.random() < 0.5 ? [[one, 3], ...three.map(x => [x, 1])] : [...three.map(x => [x, 1]), [one, 3]];
+        let plan;
+        if (hard) plan = [[fresh("D", seen, used, {level}), 3], [fresh("D", seen, used, {level}), 3]];     // two stories × 3 questions
+        else {
+          const one = fresh("D", seen, used), three = [fresh("D", seen, used), fresh("D", seen, used), fresh("D", seen, used)];
+          plan = Math.random() < 0.5 ? [[one, 3], ...three.map(x => [x, 1])] : [...three.map(x => [x, 1]), [one, 3]];
+        }
         plan.forEach(([r, n]) => r && dItems(r, n).forEach(it => list.push({p, it})));
       } else {
-        for (let i = 0; i < PLAN[p]; i++){ const it = fresh(p, seen, used); if (it) list.push({p, it}); }
+        for (let i = 0; i < PLAN[p]; i++){ const it = fresh(p, seen, used, {level}); if (it) list.push({p, it}); }
       }
     });
     return list;
   }
   /* a single practice item (D gives one question) */
-  function one(p, seen, recentTpl){
+  function one(p, seen, recentTpl, level = "basic"){
     const used = new Set(recentTpl || []);
-    const it = fresh(p, seen, used);
+    const it = fresh(p, seen, used, {level});
     if (!it) return null;
     return p === "D" ? dItems(it, 1)[0] : it;
   }
   /* n items of one part (D as single questions), no repeated template inside the batch */
-  function part(p, n, seen){
+  function part(p, n, seen, level = "basic"){
     const used = new Set(), out = [];
     for (let i = 0; i < n; i++){
-      const it = fresh(p, seen, used, p === "B" ? {tier: i < n / 3 ? "s" : i < 2 * n / 3 ? "m" : "l"} : {});
+      const it = fresh(p, seen, used, p === "B" ? {tier: i < n / 3 ? "s" : i < 2 * n / 3 ? "m" : "l", level} : {level});
       if (!it) continue;
       out.push(p === "D" ? dItems(it, 1)[0] : it);
     }
     return p === "B" ? out.sort((a, b) => words(a.text) - words(b.text)) : out;
   }
-  function counts(){ const o = {}; Object.keys(TPL).forEach(p => o[p] = TPL[p].length); return o; }
+  function counts(level = "basic"){ const o = {}, T = LEVELS[level] || TPL; Object.keys(T).forEach(p => o[p] = T[p].length); return o; }
 
-  return {buildTest, one, part, counts, num, PLAN, _TPL: TPL};
+  return {buildTest, one, part, counts, num, PLAN, addLevel, _TPL: TPL, _LEVELS: LEVELS};
 })();
 if (typeof window !== "undefined") window.VGen = VGen;
 if (typeof module !== "undefined" && module.exports) module.exports = VGen;
